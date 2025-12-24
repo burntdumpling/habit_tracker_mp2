@@ -5,43 +5,52 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import com.example.application.bottom_navigation.BottomNavigation
 import com.example.application.bottom_navigation.NavGraph
-import com.example.application.ui.theme.ApplicationTheme
-
+import com.example.application.AddHabitDialog
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent {
-            Main()
-        }
+        setContent { Main() }
     }
 }
 
 @Composable
-fun Main ( ) {
+fun Main() {
     val navController = rememberNavController()
-    Scaffold (
+    var showAddHabit by rememberSaveable { mutableStateOf(false) }
+
+    Scaffold(
         bottomBar = {
-            BottomNavigation(navController = navController)
+            BottomNavigation(
+                navController = navController,
+                onAddClick = { showAddHabit = true }
+            )
         }
 
-    ) {
-        innerPadding ->
-            Box(
-                modifier = Modifier.padding(innerPadding)
-            ) {
-                NavGraph(navHostController = navController)
-            }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
+            NavGraph(navHostController = navController)
+        }
+    }
+
+    if (showAddHabit) {
+        AddHabitDialog(
+            onDismiss = { showAddHabit = false },
+            onSave = { showAddHabit = false } // пока просто закрываем
+        )
     }
 }
+
+
