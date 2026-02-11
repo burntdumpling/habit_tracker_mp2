@@ -27,10 +27,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Main() {
-    val navController = rememberNavController()
-    var showAddHabit by rememberSaveable { mutableStateOf(false) }
+fun Main ( ) {
+    navigation()
+}
 
+@Composable
+fun navigation() {
+    val navController = rememberNavController()
     Scaffold(
         bottomBar = {
             BottomNavigation(
@@ -40,17 +43,10 @@ fun Main() {
         }
 
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
+        Box(
+            modifier = Modifier.padding(innerPadding)
+        ) {
             NavGraph(navHostController = navController)
         }
     }
-
-    if (showAddHabit) {
-        AddHabitDialog(
-            onDismiss = { showAddHabit = false },
-            onSave = { showAddHabit = false } // пока просто закрываем
-        )
-    }
 }
-
-
