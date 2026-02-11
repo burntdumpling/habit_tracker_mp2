@@ -1,6 +1,5 @@
 package com.example.application.bottom_navigation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -23,71 +22,44 @@ fun BottomNavigation(
     navController: NavController,
     onAddClick: () -> Unit
 ) {
-    val listItems = listOf (
+    @Suppress("UNUSED_PARAMETER")
+    val listItems = listOf(
         BottomItem.Home,
         BottomItem.Plus,
         BottomItem.Statistics
     )
 
-    NavigationBar (
+    NavigationBar(
         modifier = Modifier
-            .fillMaxWidth().
-            height(height = 80.dp),
-
+            .fillMaxWidth()
+            .height(height = 80.dp),
     ) {
         val backStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = backStackEntry?.destination?.route
 
+        listItems.forEach { item ->
+            NavigationBarItem(
+                selected = currentRoute == item.route,
                 onClick = {
-                    navController.navigate(item.route)
+                    navController.navigate(item.route) {
+                        launchSingleTop = true
+                    }
                 },
-
                 icon = {
                     Icon(
                         painter = painterResource(id = item.iconId),
-                        contentDescription = "Icon",
-                        modifier = Modifier.size(32.dp)
+                        contentDescription = item.title,
+                        modifier = Modifier.size(24.dp)
                     )
                 },
-
-
+                label = null,
+                alwaysShowLabel = false,
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.DarkGray,
-                    unselectedIconColor = Color.LightGray,
-                    selectedTextColor = Color.Black,
-                    unselectedTextColor = Color.Gray,
+                    selectedIconColor = Color.Black,
+                    unselectedIconColor = Color.Gray,
                     indicatorColor = Color.Transparent
                 )
-            } else {
-                val item = itemOrNull
-                NavigationBarItem(
-                    selected = currentRoute == item.route,
-                    onClick = {
-                        navController.navigate(item.route) {
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            painter = painterResource(id = item.iconId),
-                            contentDescription = item.title
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = item.title,
-                            fontSize = 9.sp
-                        )
-                    },
-                    alwaysShowLabel = true,
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        unselectedIconColor = Color.Gray,
-                        selectedTextColor = Color.Black,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-            }
+            )
         }
     }
 }
