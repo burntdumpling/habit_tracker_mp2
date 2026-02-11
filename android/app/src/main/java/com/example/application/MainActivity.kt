@@ -30,18 +30,22 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Main ( ) {
+    navigation()
+}
+
+@Composable
+fun navigation() {
     val navController = rememberNavController()
-    Scaffold (
+    Scaffold(
         bottomBar = {
             BottomNavigation(navController = navController)
         }
 
-    ) {
-        innerPadding ->
-            Box(
-                modifier = Modifier.padding(innerPadding)
-            ) {
-                NavGraph(navHostController = navController)
-            }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            NavGraph(navHostController = navController)
+        }
     }
 }

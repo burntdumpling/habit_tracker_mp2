@@ -4,27 +4,23 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.application.Screen1
-import com.example.application.Screen2
-import com.example.application.Screen3
-import com.example.application.Screen4
+import com.example.application.Home
+import com.example.application.Plus
+import com.example.application.Statistics
 
 @Composable
 fun NavGraph (
     navHostController: NavHostController
 ) {
-    NavHost(navHostController, startDestination = "screen_1") {
-        composable("screen_1") {
-            Screen1()
+    NavHost(navHostController, startDestination = "home") {
+        composable("home") {
+            Home()
         }
-        composable("screen_2") {
-            Screen2()
+        composable("plus") {
+            Plus()
         }
-        composable("screen_3") {
-            Screen3()
-        }
-        composable("screen_4") {
-            Screen4()
+        composable("statistics") {
+            Statistics()
         }
     }
 }
