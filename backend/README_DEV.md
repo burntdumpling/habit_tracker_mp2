@@ -35,6 +35,7 @@ docker compose up -d
 ```bash
 alembic upgrade head
 ```
+Step 5 adds the habits tables (`habits`, `habit_weekdays`, `habit_targets`) through this command.
 
 ## 8) Run API on host machine
 ```bash
@@ -56,3 +57,17 @@ uvicorn app.main:app --reload --port 8000
 4. Copy `access_token` from the response.
 5. Click **Authorize** in Swagger and paste the token.
 6. Call `GET /auth/me`.
+
+## 10) Test habits CRUD in Swagger
+1. Register and login, then click **Authorize** with the bearer token.
+2. Call `POST /habits` with a valid `HabitCreate` payload.
+3. Call `PATCH /habits/{habit_id}` with a `HabitUpdate` payload.
+4. Call `DELETE /habits/{habit_id}` and verify `204 No Content`.
+
+## 11) Step 5.5: Test habits READ endpoints
+1. Login, then click **Authorize** in Swagger.
+2. Call `GET /habits` and confirm it returns `[]` for a new user.
+3. Call `POST /habits` to create one habit.
+4. Call `GET /habits` again and confirm the created habit appears.
+5. Call `GET /habits/{habit_id}` with that id and confirm it returns the same habit.
+6. Optional: call `GET /habits?status=ACTIVE` (or `PAUSED` / `FINISHED`) to test status filtering.

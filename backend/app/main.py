@@ -3,11 +3,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routers.auth import router as auth_router
+from app.api.routers import auth_router, habits_router
 from app.db.session import get_db
 
 app = FastAPI(title="Habit Tracker API")
 app.include_router(auth_router)
+app.include_router(habits_router)
 
 
 @app.get("/")
