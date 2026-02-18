@@ -79,7 +79,13 @@ fun navigation() {
                     )
                 }
                 composable("home") {
-                    Home()
+                    Home(
+                        onLogout = {
+                            navController.navigate("authorization") {
+                                popUpTo(0)
+                            }
+                        }
+                    )
                 }
                 composable("plus") {
                     Plus()

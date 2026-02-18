@@ -10,11 +10,12 @@ import com.example.application.Statistics
 
 @Composable
 fun NavGraph (
-    navHostController: NavHostController
+    navHostController: NavHostController,
+    onLogout: () -> Unit
 ) {
     NavHost(navHostController, startDestination = "home") {
         composable("home") {
-            Home()
+            Home(onLogout = onLogout)
         }
         composable("plus") {
             Plus()

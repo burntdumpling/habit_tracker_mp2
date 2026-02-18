@@ -32,8 +32,10 @@ import com.example.application.bottom_sheets.CalendarSheet
 
 
 @Composable
-fun Home() {
-    Sheets()
+fun Home(
+    onLogout: () -> Unit
+) {
+    Sheets(onLogout)
 }
 
 
@@ -50,7 +52,9 @@ private enum class HomeBottomSheet {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Sheets ( ) {
+fun Sheets (
+    onLogout: () -> Unit
+) {
     var isSheetVisible by remember { mutableStateOf(false) }                                // состояние открыта ли шторка
     var currentSheet by remember { mutableStateOf(HomeBottomSheet.SETTINGS) }               // состояние какая именно шторка открыта
 
@@ -103,7 +107,7 @@ fun Sheets ( ) {
                 onDismissRequest = { isSheetVisible = false }
             ) {
                 when (currentSheet) {
-                    HomeBottomSheet.SETTINGS -> SettingsSheet()
+                    HomeBottomSheet.SETTINGS -> SettingsSheet(onLogout)
                     HomeBottomSheet.CALENDAR -> CalendarSheet()
                 }
             }
