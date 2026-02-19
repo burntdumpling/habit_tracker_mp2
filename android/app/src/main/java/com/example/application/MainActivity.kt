@@ -3,7 +3,8 @@ package com.example.application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
@@ -16,14 +17,36 @@ import androidx.navigation.compose.rememberNavController
 import com.example.application.bottom_navigation.BottomNavigation
 import com.example.application.reg_auth.AuthorizationScreen
 import com.example.application.reg_auth.RegistrationScreen
+import android.content.Context
+import android.content.res.Configuration
+import java.util.Locale
+
 
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        val locale = Locale("ru", "RU")
+        Locale.setDefault(locale)
+
+        val config = Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+
+        val localizedContext = newBase.createConfigurationContext(config)
+        super.attachBaseContext(localizedContext)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Оставляем и AppCompat-локаль тоже (не мешает, полезно для других компонентов)
+        AppCompatDelegate.setApplicationLocales(
+            LocaleListCompat.forLanguageTags("ru-RU")
+        )
+
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
         setContent { Main() }
     }
 }
+
 
 @Composable
 fun Main ( ) {
@@ -51,7 +74,7 @@ fun navigation() {
         Box(
             modifier = Modifier.padding(innerPadding)
         ) {
-            NavHost(navController = navController, startDestination = "authorization") {
+            NavHost(navController = navController, startDestination = "home") {
                 composable("authorization") {
                     AuthorizationScreen(
                         onNavigateToRegistration = {

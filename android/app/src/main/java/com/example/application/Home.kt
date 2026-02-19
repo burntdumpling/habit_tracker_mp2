@@ -7,28 +7,30 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.application.bottom_sheets.SettingsSheet
 import com.example.application.bottom_sheets.CalendarSheet
 import com.example.application.habit.Habit
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FitnessCenter
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+
+
 
 @Composable
 fun Home(
@@ -38,6 +40,10 @@ fun Home(
     val context = LocalContext.current
     val repository = (context.applicationContext as MyApp).appContainer.habitsRepository
     val habits by repository.habits.collectAsState()
+    val mskZoneId = remember { ZoneId.of("Europe/Moscow") }
+    var selectedDate by remember { mutableStateOf(LocalDate.now(mskZoneId)) }
+
+
 
     var isSettingsVisible by remember { mutableStateOf(false) }
     var isCalendarVisible by remember { mutableStateOf(false) }
@@ -52,9 +58,12 @@ fun Home(
     ) {
         // Верхняя панель
         TopPanel(
+            selectedDate = selectedDate,
+            mskZoneId = mskZoneId,
             onProfileClick = { isSettingsVisible = true },
             onCalendarClick = { isCalendarVisible = true }
         )
+
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -101,7 +110,11 @@ fun Home(
         SettingsBottomSheet(onDismiss = { isSettingsVisible = false }, onLogout = onLogout)
     }
     if (isCalendarVisible) {
-        CalendarBottomSheet(onDismiss = { isCalendarVisible = false })
+        CalendarBottomSheet(
+            selectedDate = selectedDate,
+            onDismiss = { isCalendarVisible = false },
+            onDateSelected = { selectedDate = it }
+        )
     }
 }
 
@@ -148,7 +161,7 @@ fun NewHabitCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.FitnessCenter, // Заглушка иконки
+                    imageVector = Icons.Filled.FitnessCenter,
                     contentDescription = null,
                     tint = Color(habit.colorArgb),
                     modifier = Modifier.size(24.dp)
@@ -193,7 +206,7 @@ fun NewHabitCard(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Default.Add,
+                            imageVector = Icons.Filled.Add,
                             contentDescription = "Увеличить",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
@@ -207,7 +220,7 @@ fun NewHabitCard(
                     modifier = Modifier.padding(start = 4.dp).size(24.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Delete,
+                        imageVector = Icons.Filled.Delete,
                         contentDescription = "Удалить",
                         tint = Color.Gray.copy(alpha = 0.4f),
                         modifier = Modifier.size(16.dp)
@@ -221,9 +234,22 @@ fun NewHabitCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopPanel(
+    selectedDate: LocalDate,
+    mskZoneId: ZoneId,
     onProfileClick: () -> Unit,
     onCalendarClick: () -> Unit
 ) {
+    val todayMsk = remember { LocalDate.now(mskZoneId) }
+    val formatter = remember { DateTimeFormatter.ofPattern("d MMMM", Locale("ru", "RU")) }
+
+    val title = when (selectedDate) {
+        todayMsk -> "Сегодня"
+        todayMsk.plusDays(1) -> "Завтра"
+        todayMsk.minusDays(1) -> "Вчера"
+        else -> selectedDate.format(formatter)
+    }
+
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -231,23 +257,18 @@ fun TopPanel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        CircleIconButton(
-            iconRes = R.drawable.settings,
-            onClick = onProfileClick
-        )
+        CircleIconButton(iconRes = R.drawable.settings, onClick = onProfileClick)
 
         Text(
-            text = "Сегодня",
+            text = title,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
 
-        CircleIconButton(
-            iconRes = R.drawable.calendar,
-            onClick = onCalendarClick
-        )
+        CircleIconButton(iconRes = R.drawable.calendar, onClick = onCalendarClick)
     }
 }
+
 
 @Composable
 fun CircleIconButton(
@@ -297,7 +318,7 @@ fun AddHabitCard(onClick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Icons.Filled.Add,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
@@ -328,11 +349,21 @@ fun SettingsBottomSheet(onDismiss: () -> Unit, onLogout: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarBottomSheet(onDismiss: () -> Unit) {
+fun CalendarBottomSheet(
+    selectedDate: LocalDate,
+    onDismiss: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit
+) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
-        CalendarSheet()
+        CalendarSheet(
+            initialDate = selectedDate,
+            onDateSelected = onDateSelected,
+            onClose = onDismiss
+        )
     }
 }
+
+
