@@ -1,0 +1,52 @@
+package com.example.application.data.habits
+
+import com.example.application.habit.CreateHabitRequest
+import com.example.application.habit.Habit
+import com.example.application.habit.HabitStatus
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
+
+class InMemoryHabitsRepository : HabitsRepository {
+    
+    private val nextId = AtomicLong(1L)
+    private val _habits = MutableStateFlow<List<Habit>>(emptyList())
+    
+    override val habits: StateFlow<List<Habit>> = _habits.asStateFlow()
+
+    override fun addHabit(request: CreateHabitRequest): Result<Habit> = runCatching {
+        val habit = Habit(
+            habitId = nextId.getAndIncrement(),
+            status = HabitStatus.ACTIVE,
+            name = request.name,
+            iconId = request.iconId,
+            colorArgb = request.colorArgb,
+            createdAt = Instant.now(),
+            startDate = request.startDate,
+            endDate = request.endDate,
+            frequency = request.frequency,
+            targets = request.targets
+        )
+        
+        _habits.update { current ->
+            // Добавляем в начало списка для удобства UI
+            listOf(habit) + current
+        }
+        
+        habit
+    }
+
+    override fun deleteHabit(habitId: Long): Result<Unit> = runCatching {
+        val current = _habits.value
+        val updated = current.filter { it.habitId != habitId }
+        
+        if (updated.size == current.size) {
+            throw IllegalArgumentException("Habit with id $habitId not found")
+        }
+        
+        _habits.value = updated
+    }
+}

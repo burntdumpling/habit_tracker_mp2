@@ -79,10 +79,23 @@ fun navigation() {
                     )
                 }
                 composable("home") {
-                    Home()
+                    Home(
+                        onLogout = {
+                            navController.navigate("authorization") {
+                                popUpTo(0)
+                            }
+                        },
+                        onAddHabit = {
+                            navController.navigate("plus")
+                        }
+                    )
                 }
                 composable("plus") {
-                    Plus()
+                    Plus(onHabitCreated = {
+                        navController.navigate("home") {
+                            popUpTo("home") { inclusive = true }
+                        }
+                    })
                 }
                 composable("statistics") {
                     Statistics()

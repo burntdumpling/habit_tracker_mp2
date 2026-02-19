@@ -18,4 +18,6 @@ class AppContainer(
     private val apiClient: ApiClient = ApiClient(tokenStorage, sessionManager)
     val authApi: AuthApi = apiClient.createAuthApi()
     val authRepository: AuthRepository = AuthRepository(authApi, tokenStorage, sessionManager)
+    
+    val habitsRepository: com.example.application.data.habits.HabitsRepository = com.example.application.data.habits.InMemoryHabitsRepository()
 }
