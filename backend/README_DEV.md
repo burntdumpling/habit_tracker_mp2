@@ -71,3 +71,18 @@ uvicorn app.main:app --reload --port 8000
 4. Call `GET /habits` again and confirm the created habit appears.
 5. Call `GET /habits/{habit_id}` with that id and confirm it returns the same habit.
 6. Optional: call `GET /habits?status=ACTIVE` (or `PAUSED` / `FINISHED`) to test status filtering.
+
+## 12) Step 6.4: Test habit logs in Swagger
+1. Login, then click **Authorize** in Swagger.
+2. Create a habit with `POST /habits`.
+3. Call `PUT /habits/{id}/logs` with `{"date":"YYYY-MM-DD","dayPart":"MORNING","amount":1}`.
+4. Call the same `PUT` again with `amount=2` and verify it updates the same log (`updatedAt` changes).
+5. Call `DELETE /habits/{id}/logs?date=YYYY-MM-DD&dayPart=MORNING`.
+6. Optional: call `DELETE /habits/{id}` to remove the habit.
+
+## 13) Step 6.5: Test habit log READ endpoints
+1. Login, then click **Authorize** in Swagger.
+2. Create a habit with `POST /habits`.
+3. Add a log with `PUT /habits/{id}/logs`.
+4. Call `GET /habits/{id}/logs?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD`.
+5. Call `GET /habits/logs?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD`.
