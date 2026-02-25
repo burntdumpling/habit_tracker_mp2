@@ -144,7 +144,7 @@ async def _get_habit_or_404(db: AsyncSession, user_id: UUID, habit_id: int) -> H
 def _validate_dates(start_date: date, end_date: date | None) -> None:
     if end_date is not None and start_date > end_date:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="startDate must be less than or equal to endDate",
         )
 
@@ -154,14 +154,14 @@ def _validate_frequency(frequency: FrequencyIn) -> None:
 
     if len(set(week_days)) != len(week_days):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="weekDays must not contain duplicates",
         )
 
     if frequency.type == FrequencyType.DAILY:
         if week_days or frequency.everyNDays is not None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="DAILY requires empty weekDays and null everyNDays",
             )
         return
@@ -169,7 +169,7 @@ def _validate_frequency(frequency: FrequencyIn) -> None:
     if frequency.type == FrequencyType.WEEKLY:
         if not week_days or frequency.everyNDays is not None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="WEEKLY requires non-empty weekDays and null everyNDays",
             )
         return
@@ -177,13 +177,13 @@ def _validate_frequency(frequency: FrequencyIn) -> None:
     if frequency.type == FrequencyType.EVERY_N_DAYS:
         if week_days or frequency.everyNDays is None or frequency.everyNDays < 1:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="EVERY_N_DAYS requires everyNDays >= 1 and empty weekDays",
             )
         return
 
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail="Invalid frequency type",
     )
 
@@ -191,7 +191,7 @@ def _validate_frequency(frequency: FrequencyIn) -> None:
 def _validate_targets(targets: list[HabitTargetIn]) -> None:
     if not targets:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="targets must not be empty",
         )
 
@@ -199,12 +199,12 @@ def _validate_targets(targets: list[HabitTargetIn]) -> None:
     for target in targets:
         if target.targetCount < 1:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="targetCount must be greater than 0",
             )
         if target.dayPart in seen:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="targets must not contain duplicate dayPart values",
             )
         seen.add(target.dayPart)
@@ -212,7 +212,7 @@ def _validate_targets(targets: list[HabitTargetIn]) -> None:
     if DayPart.FULL_DAY in seen:
         if len(targets) != 1 or targets[0].dayPart != DayPart.FULL_DAY:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="FULL_DAY must be the only target dayPart",
             )
         return
@@ -220,7 +220,7 @@ def _validate_targets(targets: list[HabitTargetIn]) -> None:
     allowed_parts = {DayPart.MORNING, DayPart.DAY, DayPart.EVENING}
     if not seen.issubset(allowed_parts):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="targets dayPart values must be MORNING, DAY, EVENING, or FULL_DAY",
         )
 

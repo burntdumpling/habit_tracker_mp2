@@ -147,7 +147,7 @@ async def _validate_habit_day_part_allowed(db: AsyncSession, habit_id: int, day_
     allowed_day_parts = set(result.scalars().all())
     if day_part not in allowed_day_parts:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="dayPart not allowed for this habit",
         )
 
@@ -155,7 +155,7 @@ async def _validate_habit_day_part_allowed(db: AsyncSession, habit_id: int, day_
 def _validate_date_range(date_from: date, date_to: date) -> None:
     if date_from > date_to:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="dateFrom must be less than or equal to dateTo",
         )
 

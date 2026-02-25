@@ -6,9 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.db.models.user import User
 from app.schemas.enums import DayPart, HabitStatus
+from app.schemas.habit_calendar import CalendarDayOut, CalendarRangeOut
 from app.schemas.habit_completion import HabitDayCompletionOut
 from app.schemas.habit import HabitCreate, HabitOut, HabitUpdate
 from app.schemas.habit_log import HabitLogOut, HabitLogUpsertIn
+from app.services.habit_calendar import get_calendar_day, get_calendar_range
 from app.services.habit_completion import list_habit_completion, list_user_habits_completion
 from app.services.habit_logs import (
     delete_habit_log,
@@ -86,6 +88,49 @@ async def list_habit_completion_endpoint(
         habit_id=habit_id,
         date_from=dateFrom,
         date_to=dateTo,
+    )
+
+
+@router.get(
+    "/calendar/day",
+    response_model=CalendarDayOut,
+    status_code=status.HTTP_200_OK,
+    description="Calendar view for a single date.",
+)
+async def get_calendar_day_endpoint(
+    date: date,
+    status: HabitStatus | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CalendarDayOut:
+    return await get_calendar_day(
+        db=db,
+        user_id=current_user.id,
+        date_=date,
+        status=status,
+    )
+
+
+@router.get(
+    "/calendar/range",
+    response_model=CalendarRangeOut,
+    status_code=status.HTTP_200_OK,
+    description="Calendar view for a date range (inclusive). Range limited to 31 days.",
+)
+async def get_calendar_range_endpoint(
+    dateFrom: date,
+    dateTo: date,
+    status: HabitStatus | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CalendarRangeOut:
+    return await get_calendar_range(
+        db=db,
+        user_id=current_user.id,
+        date_from=dateFrom,
+        date_to=dateTo,
+        status=status,
+        max_days=31,
     )
 
 

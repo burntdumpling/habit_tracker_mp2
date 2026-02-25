@@ -1,3 +1,4 @@
+from app.services.habit_calendar import get_calendar_day, get_calendar_range
 from app.services.habits import create_habit, delete_habit, get_habit, list_habits, update_habit
 from app.services.habit_logs import (
     delete_habit_log,
@@ -19,4 +20,6 @@ __all__ = [
     "list_user_habit_logs",
     "list_habit_completion",
     "list_user_habits_completion",
+    "get_calendar_day",
+    "get_calendar_range",
 ]
