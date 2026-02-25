@@ -46,6 +46,7 @@ async def create_habit(db: AsyncSession, user_id: UUID, payload: HabitCreate) ->
         status=payload.status,
         name=payload.name,
         icon_id=payload.iconId,
+        color_argb=payload.colorArgb,
         start_date=payload.startDate,
         end_date=payload.endDate,
         frequency_type=payload.frequency.type,
@@ -78,6 +79,8 @@ async def update_habit(db: AsyncSession, user_id: UUID, habit_id: int, patch: Ha
         habit.name = patch.name
     if patch.iconId is not None:
         habit.icon_id = patch.iconId
+    if patch.colorArgb is not None:
+        habit.color_argb = patch.colorArgb
     if patch.startDate is not None:
         habit.start_date = patch.startDate
     if patch.endDate is not None:
@@ -254,6 +257,7 @@ def _map_habit_out(habit: Habit) -> HabitOut:
         "status": habit.status,
         "name": habit.name,
         "icon_id": habit.icon_id,
+        "color_argb": habit.color_argb,
         "created_at": habit.created_at,
         "start_date": habit.start_date,
         "end_date": habit.end_date,
