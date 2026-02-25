@@ -21,6 +21,7 @@ async def _create_habit(
     name: str,
     status: str = "ACTIVE",
     icon_id: int = 1,
+    color_argb: int = -16711936,
     start_date: date,
     end_date: date | None = None,
     frequency_type: str = "DAILY",
@@ -32,6 +33,7 @@ async def _create_habit(
         "status": status,
         "name": name,
         "iconId": icon_id,
+        "colorArgb": color_argb,
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat() if end_date is not None else None,
         "frequency": {

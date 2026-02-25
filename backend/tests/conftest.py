@@ -60,6 +60,7 @@ async def create_habit(client: AsyncClient, auth_headers: dict[str, str]):
         payload = {
             "name": "Read",
             "iconId": 1,
+            "colorArgb": -16711936,
             "startDate": "2026-02-01",
             "frequency": {
                 "type": "DAILY",

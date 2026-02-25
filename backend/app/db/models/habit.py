@@ -33,6 +33,7 @@ class Habit(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     icon_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    color_argb: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

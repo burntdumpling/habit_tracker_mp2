@@ -35,6 +35,7 @@ class HabitCreate(BaseModel):
     status: HabitStatus = HabitStatus.ACTIVE
     name: str
     iconId: int
+    colorArgb: int = Field(ge=-2147483648, le=2147483647)
     startDate: date
     endDate: date | None = None
     frequency: FrequencyIn
@@ -45,6 +46,7 @@ class HabitUpdate(BaseModel):
     status: HabitStatus | None = None
     name: str | None = None
     iconId: int | None = None
+    colorArgb: int | None = Field(default=None, ge=-2147483648, le=2147483647)
     startDate: date | None = None
     endDate: date | None = None
     frequency: FrequencyIn | None = None
@@ -58,6 +60,7 @@ class HabitOut(BaseModel):
     status: HabitStatus
     name: str
     iconId: int = Field(validation_alias="icon_id")
+    colorArgb: int = Field(validation_alias="color_argb", ge=-2147483648, le=2147483647)
     createdAt: datetime = Field(validation_alias="created_at")
     startDate: date = Field(validation_alias="start_date")
     endDate: date | None = Field(default=None, validation_alias="end_date")
