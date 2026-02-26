@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.time.Instant
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicLong
 
 class InMemoryHabitsRepository : HabitsRepository {
@@ -25,7 +26,7 @@ class InMemoryHabitsRepository : HabitsRepository {
             iconId = request.iconId,
             colorArgb = request.colorArgb,
             createdAt = Instant.now(),
-            startDate = request.startDate,
+            startDate = LocalDate.now(),
             endDate = request.endDate,
             frequency = request.frequency,
             targets = request.targets
@@ -48,5 +49,15 @@ class InMemoryHabitsRepository : HabitsRepository {
         }
         
         _habits.value = updated
+    }
+
+    override fun getHabit(habitId: Long): Habit? {
+        return _habits.value.find { it.habitId == habitId }
+    }
+
+    override fun updateHabit(habit: Habit): Result<Unit> = runCatching {
+        _habits.update { current ->
+            current.map { if (it.habitId == habit.habitId) habit else it }
+        }
     }
 }

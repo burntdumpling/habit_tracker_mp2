@@ -8,4 +8,6 @@ interface HabitsRepository {
     val habits: StateFlow<List<Habit>>
     fun addHabit(request: CreateHabitRequest): Result<Habit>
     fun deleteHabit(habitId: Long): Result<Unit>
+    fun getHabit(habitId: Long): Habit?
+    fun updateHabit(habit: Habit): Result<Unit>
 }
