@@ -41,6 +41,20 @@ import java.util.Locale
 
 
 
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+
+class HomeViewModelFactory(private val repository: com.example.application.data.habits.HabitsRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return HomeViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Home(
@@ -50,7 +64,9 @@ fun Home(
 ) {
     val context = LocalContext.current
     val repository = (context.applicationContext as MyApp).appContainer.habitsRepository
-    val habits by repository.habits.collectAsState()
+    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(repository))
+    
+    val habits by viewModel.habits.collectAsState()
     val mskZoneId = remember { ZoneId.of("Europe/Moscow") }
     var selectedDate by remember { mutableStateOf(LocalDate.now(mskZoneId)) }
     var selectedDayPart by remember { mutableStateOf(com.example.application.habit.DayPart.FULL_DAY) }
@@ -58,11 +74,15 @@ fun Home(
     var isSettingsVisible by remember { mutableStateOf(false) }
     var isCalendarVisible by remember { mutableStateOf(false) }
 
-    // Локальное хранилище прогресса (заглушка)
-    val progressMap = remember { mutableStateMapOf<Long, Int>() }
+    // Используем progressMap из ViewModel
+    val progressMap = viewModel.progressMap
 
-    val filteredHabits = habits.filter { habit -> 
-        habit.targets.firstOrNull()?.dayPart == selectedDayPart 
+    LaunchedEffect(Unit) {
+        viewModel.loadData()
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadData()
     }
 
     Column(
@@ -111,7 +131,13 @@ fun Home(
             }
         }
 
-        if (filteredHabits.isEmpty()) {
+        val isCurrentTabEmpty = if (selectedDayPart == com.example.application.habit.DayPart.FULL_DAY) {
+            habits.isEmpty()
+        } else {
+            habits.none { it.targets.firstOrNull()?.dayPart == selectedDayPart }
+        }
+
+        if (isCurrentTabEmpty) {
             // Пустое состояние
             Box(
                 modifier = Modifier
@@ -129,73 +155,40 @@ fun Home(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                items(filteredHabits, key = { it.habitId }) { habit ->
-                    val progress = progressMap[habit.habitId] ?: 0
-                    
-                    val density = LocalDensity.current
-                    val actionWidth = 80.dp
-                    val actionWidthPx = with(density) { actionWidth.toPx() }
-                    var offsetX by remember { mutableFloatStateOf(0f) }
-                    val animatedOffsetX by animateFloatAsState(targetValue = offsetX, label = "swipe")
+                if (selectedDayPart == com.example.application.habit.DayPart.FULL_DAY) {
+                    val allDay = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.FULL_DAY }
+                    val morning = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.MORNING }
+                    val day = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.DAY }
+                    val evening = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.EVENING }
 
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        // Подложка с кнопкой редактирования (Задний план)
-                        Surface(
-                            onClick = {
-                                offsetX = 0f // Возвращаем карточку на место перед переходом
-                                onEditHabit(habit.habitId)
-                            },
-                            modifier = Modifier
-                                .matchParentSize() // Точно повторяет размер HabitCard
-                                .padding(bottom = 8.dp), // Учитываем отступ HabitCard
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFFE0E0E0) // Серый цвет, как на макете
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.CenterEnd
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Редактировать",
-                                    tint = Color.DarkGray,
-                                    modifier = Modifier.padding(end = 28.dp)
-                                )
-                            }
+                    if (allDay.isNotEmpty()) {
+                        item { SectionHeader("ВЕСЬ ДЕНЬ") }
+                        items(allDay, key = { "allday_${it.habitId}" }) { habit ->
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
                         }
-
-                        // Сама карточка (Передний план, который двигается)
-                        Box(
-                            modifier = Modifier
-                                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                                .pointerInput(Unit) {
-                                    detectHorizontalDragGestures(
-                                        onDragEnd = {
-                                            // При отпускании пальца: либо защелкиваем в открытом виде, либо закрываем
-                                            offsetX = if (offsetX < -actionWidthPx / 2) {
-                                                -actionWidthPx
-                                            } else {
-                                                0f
-                                            }
-                                        },
-                                        onHorizontalDrag = { _, dragAmount ->
-                                            // Ограничиваем свайп только влево на ширину кнопки
-                                            offsetX = (offsetX + dragAmount).coerceIn(-actionWidthPx, 0f)
-                                        }
-                                    )
-                                }
-                        ) {
-                            HabitCard(
-                                habit = habit,
-                                currentCount = progress,
-                                onPlusClick = {
-                                    val target = computeTarget(habit)
-                                    if (progress < target) {
-                                        progressMap[habit.habitId] = progress + 1
-                                    }
-                                }
-                            )
+                    }
+                    if (morning.isNotEmpty()) {
+                        item { SectionHeader("УТРО") }
+                        items(morning, key = { "morning_${it.habitId}" }) { habit ->
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
                         }
+                    }
+                    if (day.isNotEmpty()) {
+                        item { SectionHeader("ДЕНЬ") }
+                        items(day, key = { "day_${it.habitId}" }) { habit ->
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                        }
+                    }
+                    if (evening.isNotEmpty()) {
+                        item { SectionHeader("ВЕЧЕР") }
+                        items(evening, key = { "evening_${it.habitId}" }) { habit ->
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                        }
+                    }
+                } else {
+                    val filtered = habits.filter { it.targets.firstOrNull()?.dayPart == selectedDayPart }
+                    items(filtered, key = { "filtered_${it.habitId}" }) { habit ->
+                        HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
                     }
                 }
             }
@@ -212,6 +205,92 @@ fun Home(
             onDismiss = { isCalendarVisible = false },
             onDateSelected = { selectedDate = it }
         )
+    }
+}
+
+@Composable
+fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        color = Color(0xFF384358).copy(alpha = 0.6f),
+        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
+fun HabitSwipeItemWrapper(
+    habit: Habit,
+    progressMap: Map<Long, Int>,
+    onEditHabit: (Long) -> Unit,
+    viewModel: HomeViewModel
+) {
+    val progress = progressMap[habit.habitId] ?: 0
+    val density = LocalDensity.current
+    val actionWidth = 80.dp
+    val actionWidthPx = with(density) { actionWidth.toPx() }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    val animatedOffsetX by animateFloatAsState(targetValue = offsetX, label = "swipe")
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Подложка с кнопкой редактирования (Задний план)
+        Surface(
+            onClick = {
+                offsetX = 0f // Возвращаем карточку на место перед переходом
+                onEditHabit(habit.habitId)
+            },
+            modifier = Modifier
+                .matchParentSize() // Точно повторяет размер HabitCard
+                .padding(bottom = 8.dp), // Учитываем отступ HabitCard
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFE0E0E0) // Серый цвет, как на макете
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Редактировать",
+                    tint = Color.DarkGray,
+                    modifier = Modifier.padding(end = 28.dp)
+                )
+            }
+        }
+
+        // Сама карточка (Передний план, который двигается)
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            // При отпускании пальца: либо защелкиваем в открытом виде, либо закрываем
+                            offsetX = if (offsetX < -actionWidthPx / 2) {
+                                -actionWidthPx
+                            } else {
+                                0f
+                            }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            // Ограничиваем свайп только влево на ширину кнопки
+                            offsetX = (offsetX + dragAmount).coerceIn(-actionWidthPx, 0f)
+                        }
+                    )
+                }
+        ) {
+            HabitCard(
+                habit = habit,
+                currentCount = progress,
+                onPlusClick = {
+                    val target = computeTarget(habit)
+                    if (progress < target) {
+                        viewModel.incrementProgress(habit)
+                    }
+                }
+            )
+        }
     }
 }
 

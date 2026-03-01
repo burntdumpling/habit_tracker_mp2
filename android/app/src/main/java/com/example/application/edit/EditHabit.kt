@@ -109,7 +109,7 @@ fun EditHabitScreen(
                 )
                 OutlinedTextField(
                     value = state.name,
-                    onValueChange = viewModel::updateName,
+                    onValueChange = { viewModel.updateName(it.take(40)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Transparent,

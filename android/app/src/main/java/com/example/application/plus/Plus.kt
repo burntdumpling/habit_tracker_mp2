@@ -1,10 +1,14 @@
 package com.example.application.plus
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -23,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import android.widget.Toast
 import com.example.application.R
 import com.example.application.MyApp
 import com.example.application.habit.*
@@ -52,12 +57,10 @@ fun Plus(
     val habitsRepository = appContainer.habitsRepository
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(habitIdToEdit) {
-        if (habitIdToEdit != null) {
-            val habit = habitsRepository.getHabit(habitIdToEdit)
-            if (habit != null) {
-                viewModel.loadHabitForEdit(habit)
-            }
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.setError(null)
         }
     }
 
@@ -83,7 +86,7 @@ fun Plus(
                 1 -> Step1(onNavigateNext = viewModel::nextStep)
                 2 -> Step2(
                     name = state.name,
-                    onNameChange = viewModel::updateName,
+                    onNameChange = { viewModel.updateName(it.take(40)) },
                     onNavigateNext = viewModel::nextStep
                 )
                 3 -> Step3(
@@ -111,42 +114,9 @@ fun Plus(
                 )
                 7 -> Step7(
                     state = state,
+                    viewModel = viewModel,
                     onAddHabit = {
-                        scope.launch {
-                            val frequency = when (state.frequencyType) {
-                                FrequencyType.DAILY -> Frequency.Daily
-                                FrequencyType.WEEKLY -> Frequency.Weekly(state.weekDays.toSet())
-                                FrequencyType.EVERY_N_DAYS -> Frequency.EveryNDays(1)
-                            }
-                            
-                            val targets = listOf(HabitTarget(state.dayPart, state.targetCount))
-                            val editId = state.editingHabitId
-
-                            if (editId != null) {
-                                val currentHabit = habitsRepository.getHabit(editId)
-                                if (currentHabit != null) {
-                                    val updatedHabit = currentHabit.copy(
-                                        name = state.name,
-                                        iconId = state.iconId,
-                                        colorArgb = state.colorArgb,
-                                        frequency = frequency,
-                                        targets = targets
-                                    )
-                                    habitsRepository.updateHabit(updatedHabit)
-                                }
-                            } else {
-                                val request = CreateHabitRequest(
-                                    name = state.name,
-                                    iconId = state.iconId,
-                                    colorArgb = state.colorArgb,
-                                    startDate = LocalDate.now(),
-                                    endDate = null,
-                                    frequency = frequency,
-                                    targets = targets
-                                )
-                                habitsRepository.addHabit(request)
-                            }
-                            
+                        viewModel.saveHabit(habitsRepository) {
                             onHabitCreated()
                         }
                     }
@@ -744,68 +714,212 @@ fun TimeOfDayCard(
 @Composable
 fun Step7(
     state: CreateHabitDraftState,
+    viewModel: CreateHabitViewModel,
     onAddHabit: () -> Unit
 ) {
+    var showIconSheet by remember { mutableStateOf(false) }
+    var showColorSheet by remember { mutableStateOf(false) }
     val icons = listOf("🏃", "💧", "🛌", "🪥", "🛁", "📚", "🧘", "🍎")
     val selectedEmoji = icons.getOrNull(state.iconId - 1) ?: "❓"
 
     Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         Text(
-            text = "Всё готово! Проверим?",
+            text = "ПРОВЕРЬТЕ ДАННЫЕ",
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp,
                 color = HeaderColor
             ),
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 24.dp)
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
         )
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            shape = ShapeRounded
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = selectedEmoji, fontSize = 40.sp)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = state.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = HeaderColor)
-                    Spacer(modifier = Modifier.weight(1f))
-                    androidx.compose.foundation.Canvas(modifier = Modifier.size(28.dp)) {
-                        drawCircle(color = Color(state.colorArgb))
-                    }
+        // Section NAME
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "НАЗВАНИЕ",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
+            OutlinedTextField(
+                value = state.name,
+                onValueChange = { viewModel.updateName(it.take(40)) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = GrayColor,
+                    unfocusedContainerColor = GrayColor,
+                    cursorColor = AccentColor
+                ),
+                shape = ShapeRounded
+            )
+        }
+
+        // Section ICON AND COLOR
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "ИКОНКА И ЦВЕТ",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    SelectionCard(
+                        label = "ИКОНКА",
+                        content = { Text(text = selectedEmoji, fontSize = 48.sp) },
+                        onClick = { showIconSheet = true }
+                    )
                 }
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp), color = GrayColor)
-                
-                SummaryItemStyled("Частота", when(state.frequencyType) {
-                    FrequencyType.DAILY -> "Ежедневно"
-                    FrequencyType.WEEKLY -> "Еженедельно (${state.weekDays.size} дн.)"
-                    FrequencyType.EVERY_N_DAYS -> "Раз в несколько дней"
-                })
-                
-                SummaryItemStyled("Цель", "${state.targetCount} раз(а)")
-                
-                SummaryItemStyled("Время суток", when(state.dayPart) {
-                    DayPart.FULL_DAY -> "Весь день"
-                    DayPart.MORNING -> "Утро"
-                    DayPart.DAY -> "День"
-                    DayPart.EVENING -> "Вечер"
-                })
+                Box(modifier = Modifier.weight(1f)) {
+                    SelectionCard(
+                        label = "ЦВЕТ",
+                        content = {
+                            androidx.compose.foundation.Canvas(modifier = Modifier.size(48.dp)) {
+                                drawCircle(color = Color(state.colorArgb))
+                            }
+                        },
+                        onClick = { showColorSheet = true }
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Section GOAL
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "ЦЕЛЬ",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeRounded,
+                color = Color.White,
+                shadowElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${state.targetCount} раз в день",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = HeaderColor
+                    )
+                }
+            }
+        }
+
+        // Section TRACK DURING
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "ВРЕМЯ СУТОК",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
+            
+            TimeOfDayCard(
+                modifier = Modifier.fillMaxWidth().height(80.dp),
+                title = "ВЕСЬ ДЕНЬ",
+                iconRes = com.example.application.R.drawable.icon_fullday,
+                isSelected = state.dayPart == DayPart.FULL_DAY,
+                onClick = { viewModel.updateDayPart(DayPart.FULL_DAY) }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TimeOfDayCard(
+                    modifier = Modifier.weight(1f).height(100.dp),
+                    title = "УТРО",
+                    iconRes = com.example.application.R.drawable.icon_morning,
+                    isSelected = state.dayPart == DayPart.MORNING,
+                    onClick = { viewModel.updateDayPart(DayPart.MORNING) }
+                )
+                TimeOfDayCard(
+                    modifier = Modifier.weight(1f).height(100.dp),
+                    title = "ДЕНЬ",
+                    iconRes = com.example.application.R.drawable.icon_day,
+                    isSelected = state.dayPart == DayPart.DAY,
+                    onClick = { viewModel.updateDayPart(DayPart.DAY) }
+                )
+                TimeOfDayCard(
+                    modifier = Modifier.weight(1f).height(100.dp),
+                    title = "ВЕЧЕР",
+                    iconRes = com.example.application.R.drawable.icon_evening,
+                    isSelected = state.dayPart == DayPart.EVENING,
+                    onClick = { viewModel.updateDayPart(DayPart.EVENING) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
 
         MainButton(
-            text = if (state.editingHabitId != null) "СОХРАНИТЬ ИЗМЕНЕНИЯ" else "ДОБАВИТЬ ПРИВЫЧКУ",
-            onClick = onAddHabit
+            text = if (state.editingHabitId != null) "СОХРАНИТЬ" else "ДОБАВИТЬ",
+            onClick = onAddHabit,
+            enabled = !state.isLoading,
+            isLoading = state.isLoading
         )
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+
+    if (showIconSheet) {
+        IconSelectionSheet(
+            icons = icons,
+            onIconSelected = { id ->
+                viewModel.updateIcon(id)
+                showIconSheet = false
+            },
+            onDismiss = { showIconSheet = false }
+        )
+    }
+
+    if (showColorSheet) {
+        ColorSelectionSheet(
+            onColorSelected = { color ->
+                viewModel.updateColor(color)
+                showColorSheet = false
+            },
+            onDismiss = { showColorSheet = false }
+        )
+    }
+}
+
+@Composable
+fun ColorOption(
+    color: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp),
+        shape = CircleShape,
+        color = color,
+        border = if (isSelected) BorderStroke(3.dp, HeaderColor) else null
+    ) {
+        if (isSelected) {
+            Box(contentAlignment = Alignment.Center) {
+                // Could add a checkmark icon here if needed
+            }
+        }
     }
 }
 
@@ -821,7 +935,12 @@ fun SummaryItemStyled(label: String, value: String) {
 }
 
 @Composable
-fun MainButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+fun MainButton(
+    text: String,
+    enabled: Boolean = true,
+    isLoading: Boolean = false,
+    onClick: () -> Unit
+) {
     Button(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -833,7 +952,15 @@ fun MainButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
         ),
         shape = ShapeButton
     ) {
-        Text(text = text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp
+            )
+        } else {
+            Text(text = text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
     }
 }
 

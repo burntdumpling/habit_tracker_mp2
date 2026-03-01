@@ -18,7 +18,11 @@ class InMemoryHabitsRepository : HabitsRepository {
     
     override val habits: StateFlow<List<Habit>> = _habits.asStateFlow()
 
-    override fun addHabit(request: CreateHabitRequest): Result<Habit> = runCatching {
+    override suspend fun fetchHabits(): Result<Unit> {
+        return Result.success(Unit)
+    }
+
+    override suspend fun addHabit(request: CreateHabitRequest): Result<Habit> = runCatching {
         val habit = Habit(
             habitId = nextId.getAndIncrement(),
             status = HabitStatus.ACTIVE,
@@ -40,7 +44,7 @@ class InMemoryHabitsRepository : HabitsRepository {
         habit
     }
 
-    override fun deleteHabit(habitId: Long): Result<Unit> = runCatching {
+    override suspend fun deleteHabit(habitId: Long): Result<Unit> = runCatching {
         val current = _habits.value
         val updated = current.filter { it.habitId != habitId }
         
@@ -55,9 +59,23 @@ class InMemoryHabitsRepository : HabitsRepository {
         return _habits.value.find { it.habitId == habitId }
     }
 
-    override fun updateHabit(habit: Habit): Result<Unit> = runCatching {
+    override suspend fun updateHabit(habit: Habit): Result<Unit> = runCatching {
         _habits.update { current ->
             current.map { if (it.habitId == habit.habitId) habit else it }
         }
+    }
+
+    override suspend fun getHabitLogs(
+        dateFrom: LocalDate,
+        dateTo: LocalDate
+    ): Result<List<com.example.application.data.network.dto.HabitLogDto>> {
+        return Result.success(emptyList())
+    }
+
+    override suspend fun updateHabitLog(
+        habitId: Long,
+        request: com.example.application.data.network.dto.UpdateLogDto
+    ): Result<com.example.application.data.network.dto.HabitLogDto> {
+        return Result.failure(Exception("Not implemented"))
     }
 }

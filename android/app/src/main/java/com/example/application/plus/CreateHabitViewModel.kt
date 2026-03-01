@@ -7,6 +7,12 @@ import com.example.application.habit.DayPart
 import com.example.application.habit.FrequencyType
 import com.example.application.habit.Frequency
 import com.example.application.habit.Habit
+import com.example.application.data.habits.HabitsRepository
+import com.example.application.habit.CreateHabitRequest
+import com.example.application.habit.HabitTarget
+import java.time.LocalDate
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -23,7 +29,9 @@ data class CreateHabitDraftState(
     val weekDays: List<DayOfWeek> = emptyList(),
     val targetCount: Int = 1,
     val dayPart: DayPart = DayPart.FULL_DAY,
-    val editingHabitId: Long? = null
+    val editingHabitId: Long? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
 /**
@@ -87,6 +95,66 @@ class CreateHabitViewModel : ViewModel() {
 
     fun updateDayPart(part: DayPart) {
         _state.update { it.copy(dayPart = part) }
+    }
+
+    fun setLoading(isLoading: Boolean) {
+        _state.update { it.copy(isLoading = isLoading) }
+    }
+
+    fun setError(error: String?) {
+        _state.update { it.copy(error = error) }
+    }
+
+    fun saveHabit(repository: HabitsRepository, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            setLoading(true)
+            setError(null)
+            
+            val stateVal = _state.value
+            val frequency = when (stateVal.frequencyType) {
+                FrequencyType.DAILY -> Frequency.Daily
+                FrequencyType.WEEKLY -> Frequency.Weekly(stateVal.weekDays.toSet())
+                FrequencyType.EVERY_N_DAYS -> Frequency.EveryNDays(1)
+            }
+            
+            val targets = listOf(HabitTarget(stateVal.dayPart, stateVal.targetCount))
+            val editId = stateVal.editingHabitId
+
+            val result = if (editId != null) {
+                val currentHabit = repository.getHabit(editId)
+                if (currentHabit != null) {
+                    val updatedHabit = currentHabit.copy(
+                        name = stateVal.name,
+                        iconId = stateVal.iconId,
+                        colorArgb = stateVal.colorArgb,
+                        frequency = frequency,
+                        targets = targets
+                    )
+                    repository.updateHabit(updatedHabit)
+                } else {
+                    Result.failure(Exception("Habit not found"))
+                }
+            } else {
+                val request = CreateHabitRequest(
+                    name = stateVal.name,
+                    iconId = stateVal.iconId,
+                    colorArgb = stateVal.colorArgb,
+                    startDate = LocalDate.now(),
+                    endDate = null,
+                    frequency = frequency,
+                    targets = targets
+                )
+                repository.addHabit(request)
+            }
+
+            result.onSuccess {
+                setLoading(false)
+                onSuccess()
+            }.onFailure {
+                setLoading(false)
+                setError(it.message ?: "Ошибка сохранения")
+            }
+        }
     }
 
     fun nextStep() {
