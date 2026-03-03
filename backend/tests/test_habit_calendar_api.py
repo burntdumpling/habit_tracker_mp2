@@ -52,6 +52,14 @@ def _day_name_for(d: date) -> str:
     return DAY_OF_WEEK_NAMES[d.weekday()]
 
 
+def _assert_day_summary(day: dict[str, object], *, planned: int, completed: int, has_any_completed: bool) -> None:
+    assert day["summary"] == {
+        "plannedCount": planned,
+        "completedCount": completed,
+        "hasAnyCompleted": has_any_completed,
+    }
+
+
 @pytest.mark.asyncio
 async def test_calendar_day_returns_scheduled_habits_only(
     client: AsyncClient,
@@ -98,9 +106,12 @@ async def test_calendar_day_returns_scheduled_habits_only(
     assert response.status_code == 200
     body = response.json()
     returned_ids = {habit["habitId"] for habit in body["habits"]}
+    returned_order = [habit["habitId"] for habit in body["habits"]]
     assert daily_habit_id in returned_ids
     assert weekly_habit_id in returned_ids
     assert every_n_days_habit_id not in returned_ids
+    assert returned_order == sorted(returned_order)
+    _assert_day_summary(body, planned=2, completed=0, has_any_completed=False)
 
 
 @pytest.mark.asyncio
@@ -144,6 +155,7 @@ async def test_calendar_day_actual_is_filled_with_zeros_for_missing_parts(
     assert habit["summary"]["targetTotal"] == 2
     assert habit["summary"]["actualTotal"] == 1
     assert habit["summary"]["isCompleted"] is False
+    _assert_day_summary(body, planned=1, completed=0, has_any_completed=False)
 
 
 @pytest.mark.asyncio
@@ -183,6 +195,75 @@ async def test_calendar_day_is_completed_requires_all_target_parts(
     assert habit["summary"]["targetTotal"] == 2
     assert habit["summary"]["actualTotal"] == 2
     assert habit["summary"]["isCompleted"] is False
+    _assert_day_summary(body, planned=1, completed=0, has_any_completed=False)
+
+
+@pytest.mark.asyncio
+async def test_calendar_day_empty_has_zero_summary(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    test_date = date(2026, 2, 24)
+
+    response = await client.get(
+        "/habits/calendar/day",
+        params={"date": test_date.isoformat()},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["date"] == test_date.isoformat()
+    assert body["habits"] == []
+    _assert_day_summary(body, planned=0, completed=0, has_any_completed=False)
+
+
+@pytest.mark.asyncio
+async def test_calendar_day_summary_mixed_completion_and_stable_order(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    test_date = date(2026, 2, 25)
+    incomplete_habit_id = await _create_habit(
+        client,
+        auth_headers,
+        name="Incomplete Habit",
+        start_date=test_date - timedelta(days=3),
+        frequency_type="DAILY",
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 2}],
+    )
+    completed_habit_id = await _create_habit(
+        client,
+        auth_headers,
+        name="Completed Habit",
+        start_date=test_date - timedelta(days=3),
+        frequency_type="DAILY",
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+
+    upsert_response = await client.put(
+        f"/habits/{completed_habit_id}/logs",
+        json={"date": test_date.isoformat(), "dayPart": "FULL_DAY", "amount": 1},
+        headers=auth_headers,
+    )
+    assert upsert_response.status_code == 200
+
+    response = await client.get(
+        "/habits/calendar/day",
+        params={"date": test_date.isoformat()},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    body = response.json()
+    returned_order = [habit["habitId"] for habit in body["habits"]]
+    assert returned_order == sorted(returned_order)
+    assert returned_order == [incomplete_habit_id, completed_habit_id]
+
+    by_habit = {item["habitId"]: item for item in body["habits"]}
+    assert by_habit[incomplete_habit_id]["summary"]["isCompleted"] is False
+    assert by_habit[completed_habit_id]["summary"]["isCompleted"] is True
+    _assert_day_summary(body, planned=2, completed=1, has_any_completed=True)
 
 
 @pytest.mark.asyncio
@@ -220,6 +301,9 @@ async def test_calendar_range_returns_days_inclusive(
         "2026-02-12",
     ]
     assert len(body["days"]) == 3
+    for day in body["days"]:
+        assert day["habits"] == []
+        _assert_day_summary(day, planned=0, completed=0, has_any_completed=False)
 
 
 @pytest.mark.asyncio
@@ -253,8 +337,10 @@ async def test_calendar_filters_by_status(
         headers=auth_headers,
     )
     assert active_response.status_code == 200
-    active_ids = {habit["habitId"] for habit in active_response.json()["habits"]}
+    active_body = active_response.json()
+    active_ids = {habit["habitId"] for habit in active_body["habits"]}
     assert active_ids == {active_habit_id}
+    _assert_day_summary(active_body, planned=1, completed=0, has_any_completed=False)
 
     finished_response = await client.get(
         "/habits/calendar/day",
@@ -262,5 +348,7 @@ async def test_calendar_filters_by_status(
         headers=auth_headers,
     )
     assert finished_response.status_code == 200
-    finished_ids = {habit["habitId"] for habit in finished_response.json()["habits"]}
+    finished_body = finished_response.json()
+    finished_ids = {habit["habitId"] for habit in finished_body["habits"]}
     assert finished_ids == {finished_habit_id}
+    _assert_day_summary(finished_body, planned=1, completed=0, has_any_completed=False)

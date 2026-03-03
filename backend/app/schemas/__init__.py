@@ -1,13 +1,13 @@
 from app.schemas.auth import RegisterIn, TokenOut
 from app.schemas.habit_calendar import (
     CalendarDayOut,
+    CalendarDaySummaryOut,
     CalendarDayPartActualOut,
     CalendarDayPartTargetOut,
     CalendarHabitOut,
     CalendarHabitSummaryOut,
     CalendarRangeOut,
 )
-from app.schemas.habit_completion import HabitDayCompletionOut
 from app.schemas.habit_log import HabitLogOut, HabitLogUpsertIn
 from app.schemas.user import UserOut
 
@@ -17,7 +17,7 @@ __all__ = [
     "UserOut",
     "HabitLogUpsertIn",
     "HabitLogOut",
-    "HabitDayCompletionOut",
+    "CalendarDaySummaryOut",
     "CalendarDayPartTargetOut",
     "CalendarDayPartActualOut",
     "CalendarHabitSummaryOut",

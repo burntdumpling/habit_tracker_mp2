@@ -13,6 +13,7 @@ from app.db.models import Habit, HabitLog
 from app.schemas.enums import DayOfWeek, DayPart, FrequencyType, HabitStatus
 from app.schemas.habit_calendar import (
     CalendarDayOut,
+    CalendarDaySummaryOut,
     CalendarDayPartActualOut,
     CalendarDayPartTargetOut,
     CalendarHabitOut,
@@ -151,7 +152,19 @@ def _build_calendar_day(
         if _is_habit_scheduled_for_date(habit, current_date)
     ]
 
-    return CalendarDayOut(date=current_date, habits=scheduled_habits)
+    scheduled_habits.sort(key=lambda item: item.habitId)
+    planned = len(scheduled_habits)
+    completed = sum(1 for item in scheduled_habits if item.summary.isCompleted)
+
+    return CalendarDayOut(
+        date=current_date,
+        summary=CalendarDaySummaryOut(
+            plannedCount=planned,
+            completedCount=completed,
+            hasAnyCompleted=completed > 0,
+        ),
+        habits=scheduled_habits,
+    )
 
 
 def _build_calendar_habit(

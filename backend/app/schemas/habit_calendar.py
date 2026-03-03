@@ -39,8 +39,15 @@ class CalendarHabitOut(BaseModel):
     summary: CalendarHabitSummaryOut
 
 
+class CalendarDaySummaryOut(BaseModel):
+    plannedCount: int = Field(ge=0)
+    completedCount: int = Field(ge=0)
+    hasAnyCompleted: bool
+
+
 class CalendarDayOut(BaseModel):
     date: date_type
+    summary: CalendarDaySummaryOut
     habits: list[CalendarHabitOut]
 
 
