@@ -19,5 +19,6 @@ class AppContainer(
     val authApi: AuthApi = apiClient.createAuthApi()
     val authRepository: AuthRepository = AuthRepository(authApi, tokenStorage, sessionManager)
     
-    val habitsRepository: com.example.application.data.habits.HabitsRepository = com.example.application.data.habits.InMemoryHabitsRepository()
+    private val habitApi: com.example.application.data.network.api.HabitApiService = apiClient.createHabitApi()
+    val habitsRepository: com.example.application.data.habits.HabitsRepository = com.example.application.data.habits.NetworkHabitsRepository(habitApi)
 }

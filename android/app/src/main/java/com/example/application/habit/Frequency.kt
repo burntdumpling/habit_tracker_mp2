@@ -13,7 +13,15 @@ sealed interface Frequency {
     ) : Frequency {
         init {
             require(weekDays.isNotEmpty()) { "Weekly.weekDays must not be empty" }
-            // Выброс ошибки! Если польщователь не выбрал дни
+        }
+    }
+
+    // Каждые N дней
+    data class EveryNDays(
+        val n: Int
+    ) : Frequency {
+        init {
+            require(n > 0) { "n must be > 0" }
         }
     }
 }

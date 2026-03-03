@@ -12,6 +12,13 @@ enum class HabitStatus {
     FINISHED
 }
 
+// Тип частоты
+enum class FrequencyType {
+    DAILY,
+    WEEKLY,
+    EVERY_N_DAYS
+}
+
 // Часть дня
 enum class DayPart {
     MORNING,

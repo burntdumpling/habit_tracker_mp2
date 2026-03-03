@@ -2,6 +2,7 @@ package com.example.application.data.network
 
 import com.example.application.BuildConfig
 import com.example.application.data.auth.AuthApi
+import com.example.application.data.network.api.HabitApiService
 import com.example.application.data.session.SessionManager
 import com.example.application.data.storage.TokenStorage
 import com.squareup.moshi.Moshi
@@ -39,4 +40,6 @@ class ApiClient(
         .build()
 
     fun createAuthApi(): AuthApi = retrofit.create(AuthApi::class.java)
+
+    fun createHabitApi(): HabitApiService = retrofit.create(HabitApiService::class.java)
 }
