@@ -3,6 +3,7 @@ package com.example.application.data.habits
 import com.example.application.habit.CreateHabitRequest
 import com.example.application.habit.Habit
 import com.example.application.habit.HabitStatus
+import com.example.application.data.network.dto.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,14 +69,29 @@ class InMemoryHabitsRepository : HabitsRepository {
     override suspend fun getHabitLogs(
         dateFrom: LocalDate,
         dateTo: LocalDate
-    ): Result<List<com.example.application.data.network.dto.HabitLogDto>> {
+    ): Result<List<HabitLogDto>> {
         return Result.success(emptyList())
     }
 
-    override suspend fun updateHabitLog(
+    override suspend fun upsertHabitLog(
         habitId: Long,
-        request: com.example.application.data.network.dto.UpdateLogDto
-    ): Result<com.example.application.data.network.dto.HabitLogDto> {
+        request: UpsertHabitLogRequest
+    ): Result<HabitLogDto> {
+        return Result.failure(Exception("Not implemented"))
+    }
+
+    override suspend fun getCalendarRange(
+        dateFrom: LocalDate,
+        dateTo: LocalDate,
+        status: String?
+    ): Result<CalendarRangeDto> {
+        return Result.failure(Exception("Not implemented"))
+    }
+
+    override suspend fun getCalendarDay(
+        date: LocalDate,
+        status: String?
+    ): Result<CalendarDayDto> {
         return Result.failure(Exception("Not implemented"))
     }
 }

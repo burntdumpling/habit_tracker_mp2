@@ -11,6 +11,7 @@ data class HabitDto(
     @Json(name = "status") val status: HabitStatus,
     @Json(name = "name") val name: String,
     @Json(name = "iconId") val iconId: Int,
+    @Json(name = "colorArgb") val colorArgb: Int,
     @Json(name = "createdAt") val createdAt: String, // ISO 8601
     @Json(name = "startDate") val startDate: String, // YYYY-MM-DD
     @Json(name = "endDate") val endDate: String?,    // YYYY-MM-DD
@@ -33,6 +34,7 @@ data class CreateHabitDto(
     @Json(name = "status") val status: HabitStatus,
     @Json(name = "name") val name: String,
     @Json(name = "iconId") val iconId: Int,
+    @Json(name = "colorArgb") val colorArgb: Int,
     @Json(name = "startDate") val startDate: String, // YYYY-MM-DD
     @Json(name = "endDate") val endDate: String?,    // YYYY-MM-DD
     @Json(name = "frequency") val frequency: FrequencyDto,

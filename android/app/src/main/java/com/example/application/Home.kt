@@ -28,6 +28,7 @@ import kotlin.math.roundToInt
 import com.example.application.bottom_sheets.SettingsSheet
 import com.example.application.bottom_sheets.CalendarSheet
 import com.example.application.habit.Habit
+import com.example.application.habit.DayPart
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -69,7 +70,7 @@ fun Home(
     val habits by viewModel.habits.collectAsState()
     val mskZoneId = remember { ZoneId.of("Europe/Moscow") }
     var selectedDate by remember { mutableStateOf(LocalDate.now(mskZoneId)) }
-    var selectedDayPart by remember { mutableStateOf(com.example.application.habit.DayPart.FULL_DAY) }
+    var selectedDayPart by remember { mutableStateOf(DayPart.FULL_DAY) }
 
     var isSettingsVisible by remember { mutableStateOf(false) }
     var isCalendarVisible by remember { mutableStateOf(false) }
@@ -107,10 +108,10 @@ fun Home(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val filterItems = listOf(
-                com.example.application.habit.DayPart.FULL_DAY to R.drawable.icon_fullday,
-                com.example.application.habit.DayPart.MORNING to R.drawable.icon_morning,
-                com.example.application.habit.DayPart.DAY to R.drawable.icon_day,
-                com.example.application.habit.DayPart.EVENING to R.drawable.icon_evening
+                DayPart.FULL_DAY to R.drawable.icon_fullday,
+                DayPart.MORNING to R.drawable.icon_morning,
+                DayPart.DAY to R.drawable.icon_day,
+                DayPart.EVENING to R.drawable.icon_evening
             )
 
             filterItems.forEach { (part, iconRes) ->
@@ -131,7 +132,7 @@ fun Home(
             }
         }
 
-        val isCurrentTabEmpty = if (selectedDayPart == com.example.application.habit.DayPart.FULL_DAY) {
+        val isCurrentTabEmpty = if (selectedDayPart == DayPart.FULL_DAY) {
             habits.isEmpty()
         } else {
             habits.none { it.targets.firstOrNull()?.dayPart == selectedDayPart }
@@ -155,40 +156,40 @@ fun Home(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                if (selectedDayPart == com.example.application.habit.DayPart.FULL_DAY) {
-                    val allDay = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.FULL_DAY }
-                    val morning = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.MORNING }
-                    val day = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.DAY }
-                    val evening = habits.filter { it.targets.firstOrNull()?.dayPart == com.example.application.habit.DayPart.EVENING }
+                if (selectedDayPart == DayPart.FULL_DAY) {
+                    val allDay = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.FULL_DAY }
+                    val morning = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.MORNING }
+                    val day = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.DAY }
+                    val evening = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.EVENING }
 
                     if (allDay.isNotEmpty()) {
                         item { SectionHeader("ВЕСЬ ДЕНЬ") }
                         items(allDay, key = { "allday_${it.habitId}" }) { habit ->
-                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel, DayPart.FULL_DAY, selectedDate)
                         }
                     }
                     if (morning.isNotEmpty()) {
                         item { SectionHeader("УТРО") }
                         items(morning, key = { "morning_${it.habitId}" }) { habit ->
-                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel, DayPart.MORNING, selectedDate)
                         }
                     }
                     if (day.isNotEmpty()) {
                         item { SectionHeader("ДЕНЬ") }
                         items(day, key = { "day_${it.habitId}" }) { habit ->
-                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel, DayPart.DAY, selectedDate)
                         }
                     }
                     if (evening.isNotEmpty()) {
                         item { SectionHeader("ВЕЧЕР") }
                         items(evening, key = { "evening_${it.habitId}" }) { habit ->
-                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                            HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel, DayPart.EVENING, selectedDate)
                         }
                     }
                 } else {
                     val filtered = habits.filter { it.targets.firstOrNull()?.dayPart == selectedDayPart }
                     items(filtered, key = { "filtered_${it.habitId}" }) { habit ->
-                        HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel)
+                        HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel, selectedDayPart, selectedDate)
                     }
                 }
             }
@@ -224,7 +225,9 @@ fun HabitSwipeItemWrapper(
     habit: Habit,
     progressMap: Map<Long, Int>,
     onEditHabit: (Long) -> Unit,
-    viewModel: HomeViewModel
+    viewModel: HomeViewModel,
+    dayPart: DayPart,
+    date: LocalDate
 ) {
     val progress = progressMap[habit.habitId] ?: 0
     val density = LocalDensity.current
@@ -286,7 +289,7 @@ fun HabitSwipeItemWrapper(
                 onPlusClick = {
                     val target = computeTarget(habit)
                     if (progress < target) {
-                        viewModel.incrementProgress(habit)
+                        viewModel.incrementProgress(habit, dayPart, date)
                     }
                 }
             )
@@ -295,7 +298,7 @@ fun HabitSwipeItemWrapper(
 }
 
 private fun computeTarget(habit: Habit): Int {
-    val fullDayTarget = habit.targets.find { it.dayPart == com.example.application.habit.DayPart.FULL_DAY }
+    val fullDayTarget = habit.targets.find { it.dayPart == DayPart.FULL_DAY }
     val targetValue = if (fullDayTarget != null) {
         fullDayTarget.targetCount
     } else {

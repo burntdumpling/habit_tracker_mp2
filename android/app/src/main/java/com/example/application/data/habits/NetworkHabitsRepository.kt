@@ -1,8 +1,7 @@
 package com.example.application.data.habits
 
 import com.example.application.data.network.api.HabitApiService
-import com.example.application.data.network.dto.HabitLogDto
-import com.example.application.data.network.dto.UpdateLogDto
+import com.example.application.data.network.dto.*
 import com.example.application.data.network.mapper.toCreateDto
 import com.example.application.data.network.mapper.toDomain
 import com.example.application.data.network.mapper.toDto
@@ -12,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.lang.Exception
 import java.time.LocalDate
 
 class NetworkHabitsRepository(
@@ -60,7 +58,15 @@ class NetworkHabitsRepository(
         api.getHabitLogs(dateFrom.toString(), dateTo.toString())
     }
 
-    override suspend fun updateHabitLog(habitId: Long, request: UpdateLogDto): Result<HabitLogDto> = runCatching {
-        api.updateHabitLog(habitId, request)
+    override suspend fun upsertHabitLog(habitId: Long, request: UpsertHabitLogRequest): Result<HabitLogDto> = runCatching {
+        api.upsertHabitLog(habitId, request)
+    }
+
+    override suspend fun getCalendarRange(dateFrom: LocalDate, dateTo: LocalDate, status: String?): Result<CalendarRangeDto> = runCatching {
+        api.getCalendarRange(dateFrom.toString(), dateTo.toString(), status)
+    }
+
+    override suspend fun getCalendarDay(date: LocalDate, status: String?): Result<CalendarDayDto> = runCatching {
+        api.getCalendarDay(date.toString(), status)
     }
 }
