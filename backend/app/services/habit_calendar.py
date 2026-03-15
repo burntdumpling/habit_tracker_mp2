@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Habit, HabitLog
-from app.schemas.enums import DayOfWeek, DayPart, FrequencyType, HabitStatus
+from app.schemas.enums import DayPart, HabitStatus
 from app.schemas.habit_calendar import (
     CalendarDayOut,
     CalendarDaySummaryOut,
@@ -21,16 +21,7 @@ from app.schemas.habit_calendar import (
     CalendarRangeOut,
 )
 from app.services.habit_logs import _validate_date_range
-
-DAY_OF_WEEK_ORDER = {
-    DayOfWeek.MONDAY: 0,
-    DayOfWeek.TUESDAY: 1,
-    DayOfWeek.WEDNESDAY: 2,
-    DayOfWeek.THURSDAY: 3,
-    DayOfWeek.FRIDAY: 4,
-    DayOfWeek.SATURDAY: 5,
-    DayOfWeek.SUNDAY: 6,
-}
+from app.services.helpers.habit_schedule import is_habit_scheduled_for_date, iter_dates
 
 DAY_PART_ORDER = {
     DayPart.FULL_DAY: 0,
@@ -78,7 +69,7 @@ async def get_calendar_range(
             habits=habits,
             actual_amounts=actual_amounts,
         )
-        for current_date in _iter_dates(date_from, date_to)
+        for current_date in iter_dates(date_from, date_to)
     ]
 
     return CalendarRangeOut.model_validate(
@@ -149,7 +140,7 @@ def _build_calendar_day(
             actual_by_day_part=actual_amounts.get((habit.id, current_date), {}),
         )
         for habit in habits
-        if _is_habit_scheduled_for_date(habit, current_date)
+        if is_habit_scheduled_for_date(habit, current_date)
     ]
 
     scheduled_habits.sort(key=lambda item: item.habitId)
@@ -213,58 +204,6 @@ def _build_calendar_habit(
     )
 
 
-def _is_habit_scheduled_for_date(habit: Habit, current_date: date) -> bool:
-    """
-    Determine if a habit should appear on a given date based on date bounds
-    and frequency settings (DAILY, WEEKLY, EVERY_N_DAYS).
-    """
-    if current_date < habit.start_date:
-        return False
-    if habit.end_date is not None and current_date > habit.end_date:
-        return False
-
-    if habit.frequency_type == FrequencyType.DAILY:
-        return True
-
-    if habit.frequency_type == FrequencyType.WEEKLY:
-        if not habit.weekdays:
-            return False
-        date_weekday = current_date.weekday()
-        for habit_weekday in habit.weekdays:
-            weekday_index = _weekday_to_index(habit_weekday.weekday)
-            if weekday_index is not None and weekday_index == date_weekday:
-                return True
-        return False
-
-    if habit.frequency_type == FrequencyType.EVERY_N_DAYS:
-        if habit.every_n_days is None or habit.every_n_days <= 0:
-            return False
-        days_since_start = (current_date - habit.start_date).days
-        return days_since_start % habit.every_n_days == 0
-
-    return False
-
-
-def _weekday_to_index(weekday: object) -> int | None:
-    if isinstance(weekday, DayOfWeek):
-        return DAY_OF_WEEK_ORDER[weekday]
-
-    if isinstance(weekday, int):
-        return weekday if 0 <= weekday <= 6 else None
-
-    if isinstance(weekday, str):
-        if weekday.isdigit():
-            parsed = int(weekday)
-            return parsed if 0 <= parsed <= 6 else None
-        try:
-            weekday_enum = DayOfWeek(weekday)
-            return DAY_OF_WEEK_ORDER[weekday_enum]
-        except ValueError:
-            return None
-
-    return None
-
-
 def _validate_max_days(date_from: date, date_to: date, max_days: int) -> None:
     if max_days < 1:
         raise HTTPException(
@@ -278,10 +217,3 @@ def _validate_max_days(date_from: date, date_to: date, max_days: int) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Requested range exceeds maxDays={max_days}",
         )
-
-
-def _iter_dates(date_from: date, date_to: date):
-    current_date = date_from
-    while current_date <= date_to:
-        yield current_date
-        current_date += timedelta(days=1)
