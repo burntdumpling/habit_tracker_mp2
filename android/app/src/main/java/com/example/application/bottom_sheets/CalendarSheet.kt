@@ -1,7 +1,9 @@
 package com.example.application.bottom_sheets
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -51,8 +53,9 @@ fun CalendarSheet(
         title = null,
         headline = null,
         showModeToggle = false,
+        modifier = Modifier.fillMaxWidth(),
         colors = DatePickerDefaults.colors(
-            containerColor = Color.Transparent
+            containerColor = MaterialTheme.colorScheme.surface
         )
     )
 }

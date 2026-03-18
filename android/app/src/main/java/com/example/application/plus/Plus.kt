@@ -722,162 +722,170 @@ fun Step7(
     val icons = listOf("🏃", "💧", "🛌", "🪥", "🛁", "📚", "🧘", "🍎")
     val selectedEmoji = icons.getOrNull(state.iconId - 1) ?: "❓"
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Text(
-            text = "ПРОВЕРЬТЕ ДАННЫЕ",
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 22.sp,
-                color = HeaderColor
-            ),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-        )
-
-        // Section NAME
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 1. Scrollable content area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
             Text(
-                text = "НАЗВАНИЕ",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
-            )
-            OutlinedTextField(
-                value = state.name,
-                onValueChange = { viewModel.updateName(it.take(40)) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedContainerColor = GrayColor,
-                    unfocusedContainerColor = GrayColor,
-                    cursorColor = AccentColor
+                text = "ПРОВЕРЬТЕ ДАННЫЕ",
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    color = HeaderColor
                 ),
-                shape = ShapeRounded
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
             )
-        }
 
-        // Section ICON AND COLOR
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "ИКОНКА И ЦВЕТ",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    SelectionCard(
-                        label = "ИКОНКА",
-                        content = { Text(text = selectedEmoji, fontSize = 48.sp) },
-                        onClick = { showIconSheet = true }
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    SelectionCard(
-                        label = "ЦВЕТ",
-                        content = {
-                            androidx.compose.foundation.Canvas(modifier = Modifier.size(48.dp)) {
-                                drawCircle(color = Color(state.colorArgb))
-                            }
-                        },
-                        onClick = { showColorSheet = true }
-                    )
-                }
+            // Section NAME
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "НАЗВАНИЕ",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = { viewModel.updateName(it.take(40)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = GrayColor,
+                        unfocusedContainerColor = GrayColor,
+                        cursorColor = AccentColor
+                    ),
+                    shape = ShapeRounded
+                )
             }
-        }
 
-        // Section GOAL
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "ЦЕЛЬ",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ShapeRounded,
-                color = Color.White,
-                shadowElevation = 2.dp
-            ) {
+            // Section ICON AND COLOR
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "ИКОНКА И ЦВЕТ",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
                 Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "${state.targetCount} раз в день",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = HeaderColor
+                    Box(modifier = Modifier.weight(1f)) {
+                        SelectionCard(
+                            label = "ИКОНКА",
+                            content = { Text(text = selectedEmoji, fontSize = 48.sp) },
+                            onClick = { showIconSheet = true }
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SelectionCard(
+                            label = "ЦВЕТ",
+                            content = {
+                                androidx.compose.foundation.Canvas(modifier = Modifier.size(48.dp)) {
+                                    drawCircle(color = Color(state.colorArgb))
+                                }
+                            },
+                            onClick = { showColorSheet = true }
+                        )
+                    }
+                }
+            }
+
+            // Section GOAL
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "ЦЕЛЬ",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ShapeRounded,
+                    color = Color.White,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${state.targetCount} раз в день",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = HeaderColor
+                        )
+                    }
+                }
+            }
+
+            // Section TRACK DURING
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "ВРЕМЯ СУТОК",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
+                
+                TimeOfDayCard(
+                    modifier = Modifier.fillMaxWidth().height(80.dp),
+                    title = "ВЕСЬ ДЕНЬ",
+                    iconRes = com.example.application.R.drawable.icon_fullday,
+                    isSelected = state.dayPart == DayPart.FULL_DAY,
+                    onClick = { viewModel.updateDayPart(DayPart.FULL_DAY) }
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TimeOfDayCard(
+                        modifier = Modifier.weight(1f).height(100.dp),
+                        title = "УТРО",
+                        iconRes = com.example.application.R.drawable.icon_morning,
+                        isSelected = state.dayPart == DayPart.MORNING,
+                        onClick = { viewModel.updateDayPart(DayPart.MORNING) }
+                    )
+                    TimeOfDayCard(
+                        modifier = Modifier.weight(1f).height(100.dp),
+                        title = "ДЕНЬ",
+                        iconRes = com.example.application.R.drawable.icon_day,
+                        isSelected = state.dayPart == DayPart.DAY,
+                        onClick = { viewModel.updateDayPart(DayPart.DAY) }
+                    )
+                    TimeOfDayCard(
+                        modifier = Modifier.weight(1f).height(100.dp),
+                        title = "ВЕЧЕР",
+                        iconRes = com.example.application.R.drawable.icon_evening,
+                        isSelected = state.dayPart == DayPart.EVENING,
+                        onClick = { viewModel.updateDayPart(DayPart.EVENING) }
                     )
                 }
             }
         }
 
-        // Section TRACK DURING
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "ВРЕМЯ СУТОК",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
+        // 2. Fixed button at the bottom
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .navigationBarsPadding()
+        ) {
+            MainButton(
+                text = "ДОБАВИТЬ",
+                onClick = onAddHabit,
+                enabled = true,
+                isLoading = false
             )
-            
-            TimeOfDayCard(
-                modifier = Modifier.fillMaxWidth().height(80.dp),
-                title = "ВЕСЬ ДЕНЬ",
-                iconRes = com.example.application.R.drawable.icon_fullday,
-                isSelected = state.dayPart == DayPart.FULL_DAY,
-                onClick = { viewModel.updateDayPart(DayPart.FULL_DAY) }
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TimeOfDayCard(
-                    modifier = Modifier.weight(1f).height(100.dp),
-                    title = "УТРО",
-                    iconRes = com.example.application.R.drawable.icon_morning,
-                    isSelected = state.dayPart == DayPart.MORNING,
-                    onClick = { viewModel.updateDayPart(DayPart.MORNING) }
-                )
-                TimeOfDayCard(
-                    modifier = Modifier.weight(1f).height(100.dp),
-                    title = "ДЕНЬ",
-                    iconRes = com.example.application.R.drawable.icon_day,
-                    isSelected = state.dayPart == DayPart.DAY,
-                    onClick = { viewModel.updateDayPart(DayPart.DAY) }
-                )
-                TimeOfDayCard(
-                    modifier = Modifier.weight(1f).height(100.dp),
-                    title = "ВЕЧЕР",
-                    iconRes = com.example.application.R.drawable.icon_evening,
-                    isSelected = state.dayPart == DayPart.EVENING,
-                    onClick = { viewModel.updateDayPart(DayPart.EVENING) }
-                )
-            }
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        MainButton(
-            text = if (state.editingHabitId != null) "СОХРАНИТЬ" else "ДОБАВИТЬ",
-            onClick = onAddHabit,
-            enabled = !state.isLoading,
-            isLoading = state.isLoading
-        )
-        Spacer(modifier = Modifier.height(24.dp))
     }
 
     if (showIconSheet) {

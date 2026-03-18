@@ -4,11 +4,16 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.application.data.habits.HabitsRepository
-import com.example.application.data.network.dto.UpdateLogDto
+import com.example.application.data.network.dto.UpsertHabitLogRequest
+import com.example.application.habit.DayPart
 import com.example.application.habit.Habit
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicLong
 
 class HomeViewModel(
     private val repository: HabitsRepository
@@ -16,21 +21,36 @@ class HomeViewModel(
 
     val habits: StateFlow<List<Habit>> = repository.habits
     val progressMap = mutableStateMapOf<Long, Int>()
+    private val mskZoneId = ZoneId.of("Europe/Moscow")
+    private val loadRequestId = AtomicLong(0L)
+    private val _selectedDate = MutableStateFlow(LocalDate.now(mskZoneId))
+    val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
+
+    fun setSelectedDate(date: LocalDate) {
+        if (_selectedDate.value == date) return
+        _selectedDate.value = date
+        loadData()
+    }
 
     fun loadData() {
         viewModelScope.launch {
+            val requestId = loadRequestId.incrementAndGet()
+            val date = selectedDate.value
             repository.fetchHabits()
-            val today = LocalDate.now()
-            repository.getHabitLogs(today, today).onSuccess { logs ->
+            repository.getHabitLogs(date, date).onSuccess { logs ->
+                if (requestId != loadRequestId.get()) return@onSuccess
                 progressMap.clear()
                 logs.forEach { log ->
                     progressMap[log.habitId] = log.amount
                 }
+            }.onFailure {
+                if (requestId != loadRequestId.get()) return@onFailure
+                progressMap.clear()
             }
         }
     }
 
-    fun incrementProgress(habit: Habit) {
+    fun incrementProgress(habit: Habit, dayPart: DayPart, date: LocalDate) {
         val currentProgress = progressMap[habit.habitId] ?: 0
         val newProgress = currentProgress + 1
         
@@ -38,18 +58,12 @@ class HomeViewModel(
         progressMap[habit.habitId] = newProgress
         
         viewModelScope.launch {
-            val today = LocalDate.now()
-            // Определяем dayPart для лога. 
-            // В идеале мы должны знать, в какой части дня нажал пользователь, 
-            // но пока берем первую из целей привычки (или FULL_DAY)
-            val dayPart = habit.targets.firstOrNull()?.dayPart ?: com.example.application.habit.DayPart.FULL_DAY
-            
-            val request = UpdateLogDto(
-                date = today.toString(),
+            val request = UpsertHabitLogRequest(
+                date = date.toString(),
                 dayPart = dayPart,
                 amount = newProgress
             )
-            repository.updateHabitLog(habit.habitId, request).onFailure {
+            repository.upsertHabitLog(habit.habitId, request).onFailure {
                 // В случае ошибки откатываем локальный прогресс (опционально)
                 progressMap[habit.habitId] = currentProgress
             }

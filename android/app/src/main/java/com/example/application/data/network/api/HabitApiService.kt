@@ -1,9 +1,6 @@
 package com.example.application.data.network.api
 
-import com.example.application.data.network.dto.CreateHabitDto
-import com.example.application.data.network.dto.HabitDto
-import com.example.application.data.network.dto.HabitLogDto
-import com.example.application.data.network.dto.UpdateLogDto
+import com.example.application.data.network.dto.*
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -25,6 +22,19 @@ interface HabitApiService {
         @Query("dateFrom") dateFrom: String,
         @Query("dateTo") dateTo: String
     ): List<HabitLogDto>
+
+    @GET("habits/calendar/range")
+    suspend fun getCalendarRange(
+        @Query("dateFrom") dateFrom: String,
+        @Query("dateTo") dateTo: String,
+        @Query("status") status: String? = null
+    ): CalendarRangeDto
+
+    @GET("habits/calendar/day")
+    suspend fun getCalendarDay(
+        @Query("date") date: String,
+        @Query("status") status: String? = null
+    ): CalendarDayDto
 
     @GET("habits/{id}")
     suspend fun getHabit(
@@ -48,8 +58,8 @@ interface HabitApiService {
     )
 
     @PUT("habits/{id}/logs")
-    suspend fun updateHabitLog(
-        @Path("id") id: Long,
-        @Body request: UpdateLogDto
+    suspend fun upsertHabitLog(
+        @Path("id") habitId: Long,
+        @Body request: UpsertHabitLogRequest
     ): HabitLogDto
 }
