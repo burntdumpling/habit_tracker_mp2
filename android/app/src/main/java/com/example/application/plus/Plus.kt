@@ -880,10 +880,12 @@ fun Step7(
                 .navigationBarsPadding()
         ) {
             MainButton(
-                text = "ДОБАВИТЬ",
+
+                text = if (state.editingHabitId != null) "СОХРАНИТЬ" else "ДОБАВИТЬ",
                 onClick = onAddHabit,
-                enabled = true,
-                isLoading = false
+                enabled = !state.isLoading,
+                isLoading = state.isLoading
+
             )
         }
     }

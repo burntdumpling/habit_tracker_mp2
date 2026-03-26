@@ -134,7 +134,9 @@ fun Home(
         }
 
         val isCurrentTabEmpty = if (selectedDayPart == DayPart.FULL_DAY) {
+
             scheduledHabits.isEmpty()
+
         } else {
             scheduledHabits.none { it.targets.firstOrNull()?.dayPart == selectedDayPart }
         }
@@ -313,7 +315,7 @@ fun HabitSwipeItemWrapper(
 }
 
 private fun computeTarget(habit: Habit): Int {
-    val fullDayTarget = habit.targets.find { it.dayPart == com.example.application.habit.DayPart.FULL_DAY }
+    val fullDayTarget = habit.targets.find { it.dayPart == DayPart.FULL_DAY }
     val targetValue = if (fullDayTarget != null) {
         fullDayTarget.targetCount
     } else {

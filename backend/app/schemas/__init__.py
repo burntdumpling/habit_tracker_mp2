@@ -9,6 +9,18 @@ from app.schemas.habit_calendar import (
     CalendarRangeOut,
 )
 from app.schemas.habit_log import HabitLogOut, HabitLogUpsertIn
+from app.schemas.habit_stats import (
+    HabitCalendarDayMarkerOut,
+    HabitMonthCalendarOut,
+    HabitStatsDetailsOut,
+    HabitStatsOverviewCardOut,
+    HabitStatsSummaryOut,
+    HabitTimeOfDayStatsOut,
+    StatsOverviewOut,
+    StatsPeriod,
+    StatsPointOut,
+    TimeOfDayPointOut,
+)
 from app.schemas.user import UserOut
 
 __all__ = [
@@ -24,4 +36,14 @@ __all__ = [
     "CalendarHabitOut",
     "CalendarDayOut",
     "CalendarRangeOut",
+    "StatsPeriod",
+    "StatsPointOut",
+    "HabitStatsOverviewCardOut",
+    "StatsOverviewOut",
+    "HabitStatsSummaryOut",
+    "HabitCalendarDayMarkerOut",
+    "HabitMonthCalendarOut",
+    "TimeOfDayPointOut",
+    "HabitTimeOfDayStatsOut",
+    "HabitStatsDetailsOut",
 ]
