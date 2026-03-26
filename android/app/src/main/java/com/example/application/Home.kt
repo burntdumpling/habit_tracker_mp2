@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 
@@ -68,8 +69,8 @@ fun Home(
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(repository))
     
     val habits by viewModel.habits.collectAsState()
+    val selectedDate by viewModel.selectedDate.collectAsState()
     val mskZoneId = remember { ZoneId.of("Europe/Moscow") }
-    var selectedDate by remember { mutableStateOf(LocalDate.now(mskZoneId)) }
     var selectedDayPart by remember { mutableStateOf(DayPart.FULL_DAY) }
 
     var isSettingsVisible by remember { mutableStateOf(false) }
@@ -82,8 +83,8 @@ fun Home(
         viewModel.loadData()
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadData()
+    val scheduledHabits = remember(habits, selectedDate) {
+        habits.filter { it.isScheduledFor(selectedDate) }
     }
 
     Column(
@@ -133,9 +134,11 @@ fun Home(
         }
 
         val isCurrentTabEmpty = if (selectedDayPart == DayPart.FULL_DAY) {
-            habits.isEmpty()
+
+            scheduledHabits.isEmpty()
+
         } else {
-            habits.none { it.targets.firstOrNull()?.dayPart == selectedDayPart }
+            scheduledHabits.none { it.targets.firstOrNull()?.dayPart == selectedDayPart }
         }
 
         if (isCurrentTabEmpty) {
@@ -157,10 +160,10 @@ fun Home(
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 if (selectedDayPart == DayPart.FULL_DAY) {
-                    val allDay = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.FULL_DAY }
-                    val morning = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.MORNING }
-                    val day = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.DAY }
-                    val evening = habits.filter { it.targets.firstOrNull()?.dayPart == DayPart.EVENING }
+                    val allDay = scheduledHabits.filter { it.targets.firstOrNull()?.dayPart == DayPart.FULL_DAY }
+                    val morning = scheduledHabits.filter { it.targets.firstOrNull()?.dayPart == DayPart.MORNING }
+                    val day = scheduledHabits.filter { it.targets.firstOrNull()?.dayPart == DayPart.DAY }
+                    val evening = scheduledHabits.filter { it.targets.firstOrNull()?.dayPart == DayPart.EVENING }
 
                     if (allDay.isNotEmpty()) {
                         item { SectionHeader("ВЕСЬ ДЕНЬ") }
@@ -187,7 +190,7 @@ fun Home(
                         }
                     }
                 } else {
-                    val filtered = habits.filter { it.targets.firstOrNull()?.dayPart == selectedDayPart }
+                    val filtered = scheduledHabits.filter { it.targets.firstOrNull()?.dayPart == selectedDayPart }
                     items(filtered, key = { "filtered_${it.habitId}" }) { habit ->
                         HabitSwipeItemWrapper(habit, progressMap, onEditHabit, viewModel, selectedDayPart, selectedDate)
                     }
@@ -204,8 +207,22 @@ fun Home(
         CalendarBottomSheet(
             selectedDate = selectedDate,
             onDismiss = { isCalendarVisible = false },
-            onDateSelected = { selectedDate = it }
+            onDateSelected = viewModel::setSelectedDate
         )
+    }
+}
+
+private fun Habit.isScheduledFor(date: LocalDate): Boolean {
+    if (date.isBefore(startDate)) return false
+    if (endDate != null && date.isAfter(endDate)) return false
+
+    return when (val f = frequency) {
+        is com.example.application.habit.Frequency.Daily -> true
+        is com.example.application.habit.Frequency.Weekly -> date.dayOfWeek in f.weekDays
+        is com.example.application.habit.Frequency.EveryNDays -> {
+            val daysFromStart = ChronoUnit.DAYS.between(startDate, date)
+            daysFromStart >= 0 && daysFromStart % f.n.toLong() == 0L
+        }
     }
 }
 
@@ -393,7 +410,7 @@ fun TopPanel(
     onProfileClick: () -> Unit,
     onCalendarClick: () -> Unit
 ) {
-    val todayMsk = remember { LocalDate.now(mskZoneId) }
+    val todayMsk = LocalDate.now(mskZoneId)
     val formatter = remember { DateTimeFormatter.ofPattern("d MMMM", Locale("ru", "RU")) }
 
     val title = when (selectedDate) {
