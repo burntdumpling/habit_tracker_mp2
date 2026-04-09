@@ -179,3 +179,202 @@ async def test_upsert_rejects_day_parts_not_in_partial_targets(
     )
     assert full_day_response.status_code == 422
     assert full_day_response.json() == {"detail": "dayPart not allowed for this habit"}
+
+
+@pytest.mark.asyncio
+async def test_second_user_cannot_upsert_log_for_other_users_habit(
+    client: AsyncClient,
+    second_user_auth_headers: dict[str, str],
+    create_habit,
+) -> None:
+    habit_id = await create_habit(
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+
+    response = await client.put(
+        f"/habits/{habit_id}/logs",
+        json={"date": "2026-02-21", "dayPart": "FULL_DAY", "amount": 1},
+        headers=second_user_auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Habit not found"}
+
+
+@pytest.mark.asyncio
+async def test_second_user_cannot_list_logs_for_other_users_habit(
+    client: AsyncClient,
+    second_user_auth_headers: dict[str, str],
+    create_habit,
+    log_factory,
+) -> None:
+    habit_id = await create_habit(
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+    await log_factory(habit_id=habit_id, log_date="2026-02-21", day_part="FULL_DAY", amount=1)
+
+    response = await client.get(
+        f"/habits/{habit_id}/logs",
+        params={"dateFrom": "2026-02-21", "dateTo": "2026-02-21"},
+        headers=second_user_auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Habit not found"}
+
+
+@pytest.mark.asyncio
+async def test_second_user_cannot_delete_log_for_other_users_habit(
+    client: AsyncClient,
+    second_user_auth_headers: dict[str, str],
+    create_habit,
+    log_factory,
+) -> None:
+    habit_id = await create_habit(
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+    await log_factory(habit_id=habit_id, log_date="2026-02-21", day_part="FULL_DAY", amount=1)
+
+    response = await client.delete(
+        f"/habits/{habit_id}/logs",
+        params={"date": "2026-02-21", "dayPart": "FULL_DAY"},
+        headers=second_user_auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Habit not found"}
+
+
+@pytest.mark.asyncio
+async def test_list_user_habit_logs_returns_empty_list(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    response = await client.get(
+        "/habits/logs",
+        params={"dateFrom": "2026-02-10", "dateTo": "2026-02-12"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_list_user_habit_logs_returns_logs_across_multiple_habits_in_sorted_order(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    create_habit,
+    log_factory,
+) -> None:
+    morning_habit_id = await create_habit(
+        name="Morning Habit",
+        targets=[{"dayPart": "MORNING", "targetCount": 1}],
+    )
+    full_day_habit_id = await create_habit(
+        name="Full Day Habit",
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+
+    await log_factory(habit_id=full_day_habit_id, log_date="2026-02-11", day_part="FULL_DAY", amount=1)
+    await log_factory(habit_id=morning_habit_id, log_date="2026-02-10", day_part="MORNING", amount=1)
+
+    response = await client.get(
+        "/habits/logs",
+        params={"dateFrom": "2026-02-10", "dateTo": "2026-02-11"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [(item["habitId"], item["date"], item["dayPart"]) for item in body] == [
+        (morning_habit_id, "2026-02-10", "MORNING"),
+        (full_day_habit_id, "2026-02-11", "FULL_DAY"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_user_habit_logs_sorts_by_date_and_day_part(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    create_habit,
+    log_factory,
+) -> None:
+    habit_id = await create_habit(
+        targets=[
+            {"dayPart": "MORNING", "targetCount": 1},
+            {"dayPart": "DAY", "targetCount": 1},
+            {"dayPart": "EVENING", "targetCount": 1},
+        ]
+    )
+
+    await log_factory(habit_id=habit_id, log_date="2026-02-11", day_part="EVENING", amount=1)
+    await log_factory(habit_id=habit_id, log_date="2026-02-10", day_part="DAY", amount=1)
+    await log_factory(habit_id=habit_id, log_date="2026-02-10", day_part="MORNING", amount=1)
+
+    response = await client.get(
+        "/habits/logs",
+        params={"dateFrom": "2026-02-10", "dateTo": "2026-02-11"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert [(item["date"], item["dayPart"]) for item in response.json()] == [
+        ("2026-02-10", "MORNING"),
+        ("2026-02-10", "DAY"),
+        ("2026-02-11", "EVENING"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_user_habit_logs_does_not_include_other_users_logs(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    second_user_auth_headers: dict[str, str],
+    create_habit,
+    log_factory,
+) -> None:
+    own_habit_id = await create_habit(
+        name="Own Habit",
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+    other_habit_id = await create_habit(
+        auth=second_user_auth_headers,
+        name="Other Habit",
+        targets=[{"dayPart": "FULL_DAY", "targetCount": 1}],
+    )
+
+    await log_factory(habit_id=own_habit_id, log_date="2026-02-12", day_part="FULL_DAY", amount=1)
+    await log_factory(
+        habit_id=other_habit_id,
+        auth=second_user_auth_headers,
+        log_date="2026-02-12",
+        day_part="FULL_DAY",
+        amount=1,
+    )
+
+    response = await client.get(
+        "/habits/logs",
+        params={"dateFrom": "2026-02-12", "dateTo": "2026-02-12"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["habitId"] == own_habit_id
+
+
+@pytest.mark.asyncio
+async def test_list_user_habit_logs_invalid_date_range_returns_422(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    response = await client.get(
+        "/habits/logs",
+        params={"dateFrom": "2026-02-20", "dateTo": "2026-02-10"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "dateFrom must be less than or equal to dateTo"}
