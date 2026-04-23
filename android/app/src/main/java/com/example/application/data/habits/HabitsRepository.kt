@@ -8,7 +8,7 @@ import java.time.LocalDate
 
 interface HabitsRepository {
     val habits: StateFlow<List<Habit>>
-    suspend fun fetchHabits(): Result<Unit>
+    suspend fun fetchHabits(status: String? = null): Result<Unit>
     suspend fun addHabit(request: CreateHabitRequest): Result<Habit>
     suspend fun deleteHabit(habitId: Long): Result<Unit>
     fun getHabit(habitId: Long): Habit?

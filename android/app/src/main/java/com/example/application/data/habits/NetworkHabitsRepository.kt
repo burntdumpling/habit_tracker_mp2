@@ -20,8 +20,8 @@ class NetworkHabitsRepository(
     private val _habits = MutableStateFlow<List<Habit>>(emptyList())
     override val habits: StateFlow<List<Habit>> = _habits.asStateFlow()
 
-    override suspend fun fetchHabits(): Result<Unit> = runCatching {
-        val habitDtos = api.getHabits()
+    override suspend fun fetchHabits(status: String?): Result<Unit> = runCatching {
+        val habitDtos = api.getHabits(status = status)
         val domainHabits = habitDtos.map { it.toDomain() }
         _habits.value = domainHabits
     }
