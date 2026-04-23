@@ -19,7 +19,7 @@ class InMemoryHabitsRepository : HabitsRepository {
     
     override val habits: StateFlow<List<Habit>> = _habits.asStateFlow()
 
-    override suspend fun fetchHabits(): Result<Unit> {
+    override suspend fun fetchHabits(status: String?): Result<Unit> {
         return Result.success(Unit)
     }
 

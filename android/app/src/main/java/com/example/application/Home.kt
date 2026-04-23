@@ -20,20 +20,35 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlin.math.roundToInt
 import com.example.application.bottom_sheets.SettingsSheet
 import com.example.application.bottom_sheets.CalendarSheet
 import com.example.application.habit.Habit
 import com.example.application.habit.DayPart
+import com.example.application.settings.SettingsAction
+import com.example.application.settings.SettingsEvent
+import com.example.application.settings.SettingsViewModel
+import com.example.application.settings.SettingsViewModelFactory
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -47,11 +62,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 
-class HomeViewModelFactory(private val repository: com.example.application.data.habits.HabitsRepository) : ViewModelProvider.Factory {
+class HomeViewModelFactory(
+    private val repository: com.example.application.data.habits.HabitsRepository,
+    private val settingsPreferencesRepository: com.example.application.data.settings.SettingsPreferencesRepository
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return HomeViewModel(repository) as T
+            return HomeViewModel(repository, settingsPreferencesRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
@@ -65,8 +83,12 @@ fun Home(
     onEditHabit: (Long) -> Unit
 ) {
     val context = LocalContext.current
-    val repository = (context.applicationContext as MyApp).appContainer.habitsRepository
-    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(repository))
+    val appContainer = (context.applicationContext as MyApp).appContainer
+    val repository = appContainer.habitsRepository
+    val settingsPreferencesRepository = appContainer.settingsPreferencesRepository
+    val viewModel: HomeViewModel = viewModel(
+        factory = HomeViewModelFactory(repository, settingsPreferencesRepository)
+    )
     
     val habits by viewModel.habits.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -78,10 +100,6 @@ fun Home(
 
     // Используем progressMap из ViewModel
     val progressMap = viewModel.progressMap
-
-    LaunchedEffect(Unit) {
-        viewModel.loadData()
-    }
 
     val scheduledHabits = remember(habits, selectedDate) {
         habits.filter { it.isScheduledFor(selectedDate) }
@@ -105,7 +123,7 @@ fun Home(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val filterItems = listOf(
@@ -206,6 +224,7 @@ fun Home(
     if (isCalendarVisible) {
         CalendarBottomSheet(
             selectedDate = selectedDate,
+            habits = habits,
             onDismiss = { isCalendarVisible = false },
             onDateSelected = viewModel::setSelectedDate
         )
@@ -481,9 +500,9 @@ fun AddHabitCard(onClick: () -> Unit) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -510,11 +529,99 @@ fun AddHabitCard(onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsBottomSheet(onDismiss: () -> Unit, onLogout: () -> Unit) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val appContainer = (context.applicationContext as MyApp).appContainer
+    val sessionManager = appContainer.sessionManager
+    val settingsPreferencesRepository = appContainer.settingsPreferencesRepository
+    val settingsViewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModelFactory(
+            sessionManager = sessionManager,
+            settingsPreferencesRepository = settingsPreferencesRepository,
+            appVersionName = BuildConfig.VERSION_NAME
+        )
+    )
+    val uiState by settingsViewModel.uiState.collectAsState()
+
+    val syncNotificationStatus: () -> Unit = {
+        val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        settingsViewModel.onAction(SettingsAction.SyncNotificationsEnabled(enabled))
+    }
+
+    LaunchedEffect(Unit) {
+        syncNotificationStatus()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                syncNotificationStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(settingsViewModel) {
+        settingsViewModel.events.collect { event ->
+            when (event) {
+                SettingsEvent.Logout -> onLogout()
+                SettingsEvent.OpenNotificationSettings -> {
+                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        putExtra("app_package", context.packageName)
+                        putExtra("app_uid", context.applicationInfo.uid)
+                    }
+
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: ActivityNotFoundException) {
+                        val fallbackIntent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null)
+                        )
+                        context.startActivity(fallbackIntent)
+                    }
+                }
+
+                is SettingsEvent.OpenEmailClient -> {
+                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:${event.email}")
+                    }
+                    if (intent.resolveActivity(context.packageManager) != null) {
+                        context.startActivity(intent)
+                    } else {
+                        clipboardManager.setText(AnnotatedString(event.email))
+                        Toast.makeText(
+                            context,
+                            "Почтовый клиент не найден. Email скопирован.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+
+                is SettingsEvent.CopyToClipboard -> {
+                    clipboardManager.setText(AnnotatedString(event.value))
+                }
+
+                is SettingsEvent.ShowMessage -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
-        SettingsSheet(onLogout = onLogout)
+        SettingsSheet(
+            uiState = uiState,
+            onAction = settingsViewModel::onAction
+        )
     }
 }
 
@@ -522,6 +629,7 @@ fun SettingsBottomSheet(onDismiss: () -> Unit, onLogout: () -> Unit) {
 @Composable
 fun CalendarBottomSheet(
     selectedDate: LocalDate,
+    habits: List<Habit>,
     onDismiss: () -> Unit,
     onDateSelected: (LocalDate) -> Unit
 ) {
@@ -531,6 +639,7 @@ fun CalendarBottomSheet(
     ) {
         CalendarSheet(
             initialDate = selectedDate,
+            habits = habits,
             onDateSelected = onDateSelected,
             onClose = onDismiss
         )
