@@ -1,23 +1,26 @@
-package com.example.application.settings
+﻿package com.example.application.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.application.data.notifications.NotificationSettingsRepository
 import com.example.application.data.session.SessionManager
 import com.example.application.data.settings.HabitStatusFilter
 import com.example.application.data.settings.SettingsPreferencesRepository
+import com.example.application.notifications.NotificationSchedulingCoordinator
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val sessionManager: SessionManager,
     private val settingsPreferencesRepository: SettingsPreferencesRepository,
+    private val notificationSettingsRepository: NotificationSettingsRepository,
+    private val notificationSchedulingCoordinator: NotificationSchedulingCoordinator,
     appVersionName: String
 ) : ViewModel() {
 
@@ -42,6 +45,17 @@ class SettingsViewModel(
                 }
             }
         }
+
+        viewModelScope.launch {
+            notificationSettingsRepository.appSettingsFlow.collect { appSettings ->
+                _uiState.update {
+                    it.copy(
+                        notificationsEnabled = appSettings.notificationsEnabled,
+                        notificationsSubtitle = appSettings.notificationsEnabled.asNotificationsSubtitle()
+                    )
+                }
+            }
+        }
     }
 
     fun onAction(action: SettingsAction) {
@@ -58,19 +72,13 @@ class SettingsViewModel(
 
             SettingsAction.ConfirmLogout -> handleLogout()
 
-            SettingsAction.NotificationsClicked -> emitEvent(SettingsEvent.OpenNotificationSettings)
+            SettingsAction.ToggleNotifications -> {
+                val nextValue = !_uiState.value.notificationsEnabled
+                setNotificationsEnabled(nextValue)
+            }
 
-            is SettingsAction.SyncNotificationsEnabled -> {
-                _uiState.update {
-                    it.copy(
-                        notificationsEnabledInSystem = action.enabled,
-                        notificationsSubtitle = if (action.enabled) {
-                            "Разрешены в системе"
-                        } else {
-                            "Отключены в системе"
-                        }
-                    )
-                }
+            is SettingsAction.SetNotificationsEnabled -> {
+                setNotificationsEnabled(action.enabled)
             }
 
             SettingsAction.OpenSupport -> {
@@ -144,6 +152,13 @@ class SettingsViewModel(
         }
     }
 
+    private fun setNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            notificationSettingsRepository.setNotificationsEnabled(enabled)
+            notificationSchedulingCoordinator.onGlobalNotificationsChanged(enabled)
+        }
+    }
+
     private fun handleLogout() {
         sessionManager.logout()
         dismissDialog()
@@ -187,4 +202,8 @@ private fun HabitStatusFilter.asSubtitle(): String {
         HabitStatusFilter.PAUSED -> "Только приостановленные"
         HabitStatusFilter.FINISHED -> "Только завершённые"
     }
+}
+
+private fun Boolean.asNotificationsSubtitle(): String {
+    return if (this) "Включено" else "Выключено"
 }

@@ -1,5 +1,10 @@
-package com.example.application.plus
+﻿package com.example.application.plus
 
+import android.Manifest
+import android.app.TimePickerDialog
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -8,6 +13,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -19,23 +25,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import android.widget.Toast
-import com.example.application.R
-import com.example.application.MyApp
-import com.example.application.habit.*
-import java.time.LocalDate
-import java.time.DayOfWeek
-import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-
+import com.example.application.MyApp
+import com.example.application.R
+import com.example.application.habit.*
+import com.example.application.notifications.NotificationPermissionHelper
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.util.Locale
 // Design System Constants
 val BgColor = Color(0xFFF7F8FA)
 val HeaderColor = Color(0xFF384358)
@@ -55,7 +62,26 @@ fun Plus(
     val context = LocalContext.current
     val appContainer = (context.applicationContext as MyApp).appContainer
     val habitsRepository = appContainer.habitsRepository
-    val scope = rememberCoroutineScope()
+    val notificationSettingsRepository = appContainer.notificationSettingsRepository
+    val notificationSchedulingCoordinator = appContainer.notificationSchedulingCoordinator
+
+    LaunchedEffect(habitIdToEdit) {
+        val editId = habitIdToEdit ?: return@LaunchedEffect
+        if (state.editingHabitId == editId) return@LaunchedEffect
+
+        val habit = habitsRepository.getHabit(editId)
+        if (habit == null) {
+            viewModel.setError("Привычка не найдена")
+            return@LaunchedEffect
+        }
+
+        val notificationSettings = notificationSettingsRepository.getHabitSettingsOnce(editId)
+        viewModel.loadHabitForEdit(
+            habit = habit,
+            reminderEnabled = notificationSettings.reminderEnabled,
+            reminderTime = notificationSettings.reminderTime
+        )
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let {
@@ -116,7 +142,11 @@ fun Plus(
                     state = state,
                     viewModel = viewModel,
                     onAddHabit = {
-                        viewModel.saveHabit(habitsRepository) {
+                        viewModel.saveHabit(
+                            repository = habitsRepository,
+                            notificationSettingsRepository = notificationSettingsRepository,
+                            notificationSchedulingCoordinator = notificationSchedulingCoordinator
+                        ) {
                             onHabitCreated()
                         }
                     }
@@ -336,7 +366,7 @@ fun Step3(
     var showColorSheet by remember { mutableStateOf(false) }
 
     val icons = listOf("🏃", "💧", "🛌", "🪥", "🛁", "📚", "🧘", "🍎")
-    val selectedEmoji = icons.getOrNull(state.iconId - 1) ?: "❓"
+    val selectedEmoji = icons.getOrNull(state.iconId - 1) ?: "✅"
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -717,13 +747,68 @@ fun Step7(
     viewModel: CreateHabitViewModel,
     onAddHabit: () -> Unit
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var showIconSheet by remember { mutableStateOf(false) }
     var showColorSheet by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var showPermissionDeniedDialog by remember { mutableStateOf(false) }
+    var notificationPermissionAvailable by remember {
+        mutableStateOf(NotificationPermissionHelper.areNotificationsAvailable(context))
+    }
+
+    val reminderPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationPermissionAvailable = NotificationPermissionHelper.areNotificationsAvailable(context)
+        if (granted) {
+            viewModel.updateReminderEnabled(true)
+        } else {
+            showPermissionDeniedDialog = true
+        }
+    }
+
+    fun handleReminderToggle(targetEnabled: Boolean) {
+        if (!targetEnabled) {
+            viewModel.updateReminderEnabled(false)
+            return
+        }
+
+        if (NotificationPermissionHelper.areNotificationsAvailable(context)) {
+            notificationPermissionAvailable = true
+            viewModel.updateReminderEnabled(true)
+            return
+        }
+
+        if (NotificationPermissionHelper.isRuntimePermissionRequired()) {
+            reminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.updateReminderEnabled(true)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationPermissionAvailable = NotificationPermissionHelper.areNotificationsAvailable(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val effectiveReminderEnabled = state.reminderEnabled && notificationPermissionAvailable
     val icons = listOf("🏃", "💧", "🛌", "🪥", "🛁", "📚", "🧘", "🍎")
-    val selectedEmoji = icons.getOrNull(state.iconId - 1) ?: "❓"
+    val selectedEmoji = icons.getOrNull(state.iconId - 1) ?: "✅"
+    val reminderSubtitle = when {
+        !effectiveReminderEnabled -> "Выключено"
+        state.reminderTime != null -> state.reminderTime
+        else -> "Время не выбрано"
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 1. Scrollable content area
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -742,7 +827,6 @@ fun Step7(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
             )
 
-            // Section NAME
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "НАЗВАНИЕ",
@@ -765,7 +849,6 @@ fun Step7(
                 )
             }
 
-            // Section ICON AND COLOR
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "ИКОНКА И ЦВЕТ",
@@ -798,7 +881,6 @@ fun Step7(
                 }
             }
 
-            // Section GOAL
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "ЦЕЛЬ",
@@ -826,7 +908,6 @@ fun Step7(
                 }
             }
 
-            // Section TRACK DURING
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "ВРЕМЯ СУТОК",
@@ -834,7 +915,7 @@ fun Step7(
                     fontWeight = FontWeight.Bold,
                     color = Color.Gray
                 )
-                
+
                 TimeOfDayCard(
                     modifier = Modifier.fillMaxWidth().height(80.dp),
                     title = "ВЕСЬ ДЕНЬ",
@@ -870,9 +951,66 @@ fun Step7(
                     )
                 }
             }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "НАПОМИНАНИЕ",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ShapeRounded,
+                    color = Color.White,
+                    shadowElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { handleReminderToggle(!effectiveReminderEnabled) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Напоминание",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = HeaderColor
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = reminderSubtitle,
+                                    fontSize = 13.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            Switch(
+                                checked = effectiveReminderEnabled,
+                                onCheckedChange = { checked ->
+                                    handleReminderToggle(checked)
+                                }
+                            )
+                        }
+
+                        if (effectiveReminderEnabled) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showTimePicker = true },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = "Выбрать время",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // 2. Fixed button at the bottom
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -880,12 +1018,10 @@ fun Step7(
                 .navigationBarsPadding()
         ) {
             MainButton(
-
                 text = if (state.editingHabitId != null) "СОХРАНИТЬ" else "ДОБАВИТЬ",
                 onClick = onAddHabit,
                 enabled = !state.isLoading,
                 isLoading = state.isLoading
-
             )
         }
     }
@@ -910,6 +1046,88 @@ fun Step7(
             onDismiss = { showColorSheet = false }
         )
     }
+
+    if (showTimePicker) {
+        ReminderTimePickerDialog(
+            currentTime = state.reminderTime ?: defaultReminderTimeForDayPart(state.dayPart),
+            onTimeSelected = { selectedTime ->
+                viewModel.updateReminderTime(selectedTime)
+                showTimePicker = false
+            },
+            onDismiss = { showTimePicker = false }
+        )
+    }
+
+    if (showPermissionDeniedDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDeniedDialog = false },
+            title = { Text("Разрешение не выдано") },
+            text = { Text("Чтобы получать уведомления, разрешите их в системе") },
+            confirmButton = {
+                TextButton(onClick = { showPermissionDeniedDialog = false }) {
+                    Text("Понятно")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ReminderTimePickerDialog(
+    currentTime: String,
+    onTimeSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    DisposableEffect(currentTime) {
+        val (initialHour, initialMinute) = parseTimeForPicker(currentTime)
+        val dialog = TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                onTimeSelected(formatTime(hourOfDay, minute))
+            },
+            initialHour,
+            initialMinute,
+            true
+        )
+
+        dialog.setOnDismissListener { onDismiss() }
+        dialog.show()
+
+        onDispose {
+            dialog.setOnDismissListener(null)
+            dialog.dismiss()
+        }
+    }
+}
+
+private fun defaultReminderTimeForDayPart(dayPart: DayPart): String {
+    return when (dayPart) {
+        DayPart.MORNING -> "09:00"
+        DayPart.DAY -> "14:00"
+        DayPart.EVENING -> "20:00"
+        DayPart.FULL_DAY -> "19:00"
+    }
+}
+
+private fun parseTimeForPicker(value: String): Pair<Int, Int> {
+    val parts = value.split(":")
+    if (parts.size != 2) {
+        return 19 to 0
+    }
+
+    val hour = parts[0].toIntOrNull()
+    val minute = parts[1].toIntOrNull()
+    return if (hour != null && minute != null && hour in 0..23 && minute in 0..59) {
+        hour to minute
+    } else {
+        19 to 0
+    }
+}
+
+private fun formatTime(hour: Int, minute: Int): String {
+    return String.format(Locale.US, "%02d:%02d", hour, minute)
 }
 
 @Composable
@@ -1065,3 +1283,4 @@ fun ColorSelectionSheet(
         }
     }
 }
+

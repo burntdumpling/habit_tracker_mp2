@@ -1,17 +1,23 @@
-package com.example.application.settings
+﻿package com.example.application.settings
 
 import com.example.application.data.auth.UserOut
+import com.example.application.data.notifications.AppNotificationSettings
+import com.example.application.data.notifications.HabitNotificationSettings
+import com.example.application.data.notifications.NotificationSettingsRepository
 import com.example.application.data.session.AuthState
 import com.example.application.data.session.SessionManager
 import com.example.application.data.settings.HabitStatusFilter
 import com.example.application.data.settings.SettingsPreferencesRepository
 import com.example.application.data.storage.TokenStorage
+import com.example.application.notifications.NotificationScheduler
+import com.example.application.notifications.NotificationSchedulingCoordinator
 import com.example.application.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -29,6 +35,12 @@ class SettingsViewModelTest {
     private val tokenStorage = FakeTokenStorage()
     private val sessionManager = SessionManager(tokenStorage)
     private val settingsRepository = FakeSettingsPreferencesRepository()
+    private val notificationSettingsRepository = FakeNotificationSettingsRepository()
+    private val notificationScheduler = FakeNotificationScheduler()
+    private val notificationSchedulingCoordinator = NotificationSchedulingCoordinator(
+        notificationSettingsRepository = notificationSettingsRepository,
+        notificationScheduler = notificationScheduler
+    )
 
     @Test
     fun logout_confirm_opens_and_closes_dialog() = runTest {
@@ -101,17 +113,15 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun notifications_click_emits_open_settings_event() = runTest {
+    fun toggling_notifications_persists_new_value() = runTest {
         val viewModel = createViewModel()
-        val events = mutableListOf<SettingsEvent>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.events.take(1).toList(events)
-        }
 
-        viewModel.onAction(SettingsAction.NotificationsClicked)
+        viewModel.onAction(SettingsAction.ToggleNotifications)
         advanceUntilIdle()
 
-        assertEquals(listOf(SettingsEvent.OpenNotificationSettings), events)
+        assertEquals(true, notificationSettingsRepository.savedNotificationsEnabled)
+        assertEquals(true, viewModel.uiState.value.notificationsEnabled)
+        assertEquals("Включено", viewModel.uiState.value.notificationsSubtitle)
     }
 
     @Test
@@ -151,6 +161,8 @@ class SettingsViewModelTest {
         return SettingsViewModel(
             sessionManager = sessionManager,
             settingsPreferencesRepository = settingsRepository,
+            notificationSettingsRepository = notificationSettingsRepository,
+            notificationSchedulingCoordinator = notificationSchedulingCoordinator,
             appVersionName = "1.2.3"
         )
     }
@@ -171,6 +183,39 @@ class SettingsViewModelTest {
         }
     }
 
+    private class FakeNotificationSettingsRepository : NotificationSettingsRepository {
+        private val appSettings = MutableStateFlow(AppNotificationSettings())
+
+        var savedNotificationsEnabled: Boolean? = null
+
+        override val appSettingsFlow: Flow<AppNotificationSettings> = appSettings
+
+        override suspend fun setNotificationsEnabled(enabled: Boolean) {
+            savedNotificationsEnabled = enabled
+            appSettings.value = AppNotificationSettings(notificationsEnabled = enabled)
+        }
+
+        override fun habitSettingsFlow(habitId: Long): Flow<HabitNotificationSettings> {
+            return MutableStateFlow(HabitNotificationSettings(habitId = habitId))
+        }
+
+        override suspend fun updateHabitReminderEnabled(habitId: Long, enabled: Boolean) = Unit
+
+        override suspend fun updateHabitReminderTime(habitId: Long, reminderTime: String?) = Unit
+
+        override suspend fun updateLastReminderScheduledAt(habitId: Long, value: String?) = Unit
+
+        override suspend fun updateLastCompletionNotifiedDate(habitId: Long, value: String?) = Unit
+
+        override suspend fun updateLastStreakNotified(habitId: Long, value: Int?) = Unit
+
+        override suspend fun clearHabitSettings(habitId: Long) = Unit
+
+        override suspend fun getHabitSettingsOnce(habitId: Long): HabitNotificationSettings {
+            return HabitNotificationSettings(habitId = habitId)
+        }
+    }
+
     private class FakeTokenStorage : TokenStorage {
         private var token: String? = null
 
@@ -183,5 +228,13 @@ class SettingsViewModelTest {
         override fun clear() {
             token = null
         }
+    }
+
+    private class FakeNotificationScheduler : NotificationScheduler {
+        override suspend fun scheduleHabitReminder(habitId: Long) = Unit
+        override suspend fun cancelHabitReminder(habitId: Long) = Unit
+        override suspend fun rescheduleHabitReminder(habitId: Long) = Unit
+        override suspend fun scheduleAllHabits() = Unit
+        override suspend fun cancelAllHabits() = Unit
     }
 }

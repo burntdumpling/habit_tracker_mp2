@@ -1,4 +1,4 @@
-package com.example.application.bottom_sheets
+﻿package com.example.application.bottom_sheets
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -93,11 +93,11 @@ fun SettingsSheet(
                 icon = Icons.Default.Notifications,
                 title = "Уведомления",
                 subtitle = uiState.notificationsSubtitle,
-                onClick = { onAction(SettingsAction.NotificationsClicked) },
+                onClick = { onAction(SettingsAction.ToggleNotifications) },
                 trailing = {
                     Switch(
-                        checked = uiState.notificationsEnabledInSystem,
-                        onCheckedChange = { onAction(SettingsAction.NotificationsClicked) },
+                        checked = uiState.notificationsEnabled,
+                        onCheckedChange = { checked -> onAction(SettingsAction.SetNotificationsEnabled(checked)) },
                         modifier = Modifier.scale(0.86f)
                     )
                 }

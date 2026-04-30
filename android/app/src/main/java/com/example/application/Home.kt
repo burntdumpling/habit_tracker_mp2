@@ -1,4 +1,4 @@
-package com.example.application
+﻿package com.example.application
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,15 +21,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import kotlin.math.roundToInt
 import com.example.application.bottom_sheets.SettingsSheet
 import com.example.application.bottom_sheets.CalendarSheet
@@ -44,10 +40,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import android.widget.Toast
 import java.time.LocalDate
 import java.time.ZoneId
@@ -61,15 +55,31 @@ import java.util.Locale
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.application.notifications.HabitAchievementEvaluator
+import com.example.application.notifications.NotificationSchedulingCoordinator
+import com.example.application.notifications.NotificationPermissionHelper
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.Manifest
 
 class HomeViewModelFactory(
     private val repository: com.example.application.data.habits.HabitsRepository,
-    private val settingsPreferencesRepository: com.example.application.data.settings.SettingsPreferencesRepository
+    private val settingsPreferencesRepository: com.example.application.data.settings.SettingsPreferencesRepository,
+    private val notificationSchedulingCoordinator: NotificationSchedulingCoordinator,
+    private val habitAchievementEvaluator: HabitAchievementEvaluator
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return HomeViewModel(repository, settingsPreferencesRepository) as T
+            return HomeViewModel(
+                repository,
+                settingsPreferencesRepository,
+                notificationSchedulingCoordinator,
+                habitAchievementEvaluator
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
@@ -86,9 +96,20 @@ fun Home(
     val appContainer = (context.applicationContext as MyApp).appContainer
     val repository = appContainer.habitsRepository
     val settingsPreferencesRepository = appContainer.settingsPreferencesRepository
+    val notificationSchedulingCoordinator = appContainer.notificationSchedulingCoordinator
+    val habitAchievementEvaluator = appContainer.habitAchievementEvaluator
     val viewModel: HomeViewModel = viewModel(
-        factory = HomeViewModelFactory(repository, settingsPreferencesRepository)
+        factory = HomeViewModelFactory(
+            repository = repository,
+            settingsPreferencesRepository = settingsPreferencesRepository,
+            notificationSchedulingCoordinator = notificationSchedulingCoordinator,
+            habitAchievementEvaluator = habitAchievementEvaluator
+        )
     )
+
+    LaunchedEffect(viewModel) {
+        viewModel.bootstrapNotificationsIfNeeded()
+    }
     
     val habits by viewModel.habits.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -273,7 +294,7 @@ fun HabitSwipeItemWrapper(
     val animatedOffsetX by animateFloatAsState(targetValue = offsetX, label = "swipe")
 
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Подложка с кнопкой редактирования (Задний план)
+        // Подложка с кнопкой редактирования (задний план)
         Surface(
             onClick = {
                 offsetX = 0f // Возвращаем карточку на место перед переходом
@@ -350,7 +371,7 @@ fun HabitCard(
     onPlusClick: () -> Unit
 ) {
     val icons = listOf("🏃", "💧", "🛌", "🪥", "🛁", "📚", "🧘", "🍎")
-    val selectedEmoji = icons.getOrNull(habit.iconId - 1) ?: "❓"
+    val selectedEmoji = icons.getOrNull(habit.iconId - 1) ?: "✅"
     val targetCount = computeTarget(habit)
     val isCompleted = currentCount >= targetCount
     val habitColor = Color(habit.colorArgb)
@@ -385,7 +406,7 @@ fun HabitCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // По центру: Название и прогресс
+            // По центру: название и прогресс
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = habit.name,
@@ -535,28 +556,68 @@ fun SettingsBottomSheet(onDismiss: () -> Unit, onLogout: () -> Unit) {
     val appContainer = (context.applicationContext as MyApp).appContainer
     val sessionManager = appContainer.sessionManager
     val settingsPreferencesRepository = appContainer.settingsPreferencesRepository
+    val notificationSettingsRepository = appContainer.notificationSettingsRepository
+    val notificationSchedulingCoordinator = appContainer.notificationSchedulingCoordinator
     val settingsViewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModelFactory(
             sessionManager = sessionManager,
             settingsPreferencesRepository = settingsPreferencesRepository,
+            notificationSettingsRepository = notificationSettingsRepository,
+            notificationSchedulingCoordinator = notificationSchedulingCoordinator,
             appVersionName = BuildConfig.VERSION_NAME
         )
     )
     val uiState by settingsViewModel.uiState.collectAsState()
+    var notificationPermissionAvailable by remember {
+        mutableStateOf(NotificationPermissionHelper.areNotificationsAvailable(context))
+    }
+    var showPermissionDeniedDialog by remember { mutableStateOf(false) }
 
-    val syncNotificationStatus: () -> Unit = {
-        val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
-        settingsViewModel.onAction(SettingsAction.SyncNotificationsEnabled(enabled))
+    val effectiveNotificationsEnabled = uiState.notificationsEnabled && notificationPermissionAvailable
+    val effectiveNotificationsSubtitle = if (effectiveNotificationsEnabled) "Включено" else "Выключено"
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationPermissionAvailable = NotificationPermissionHelper.areNotificationsAvailable(context)
+        if (granted) {
+            settingsViewModel.onAction(SettingsAction.SetNotificationsEnabled(true))
+        } else {
+            showPermissionDeniedDialog = true
+        }
     }
 
-    LaunchedEffect(Unit) {
-        syncNotificationStatus()
+    fun handleNotificationToggle(targetEnabled: Boolean) {
+        if (!targetEnabled) {
+            settingsViewModel.onAction(SettingsAction.SetNotificationsEnabled(false))
+            return
+        }
+
+        if (NotificationPermissionHelper.areNotificationsAvailable(context)) {
+            notificationPermissionAvailable = true
+            settingsViewModel.onAction(SettingsAction.SetNotificationsEnabled(true))
+            return
+        }
+
+        if (NotificationPermissionHelper.isRuntimePermissionRequired()) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            settingsViewModel.onAction(SettingsAction.SetNotificationsEnabled(true))
+        }
+    }
+
+    val onSettingsAction: (SettingsAction) -> Unit = { action ->
+        when (action) {
+            SettingsAction.ToggleNotifications -> handleNotificationToggle(!effectiveNotificationsEnabled)
+            is SettingsAction.SetNotificationsEnabled -> handleNotificationToggle(action.enabled)
+            else -> settingsViewModel.onAction(action)
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                syncNotificationStatus()
+                notificationPermissionAvailable = NotificationPermissionHelper.areNotificationsAvailable(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -569,23 +630,6 @@ fun SettingsBottomSheet(onDismiss: () -> Unit, onLogout: () -> Unit) {
         settingsViewModel.events.collect { event ->
             when (event) {
                 SettingsEvent.Logout -> onLogout()
-                SettingsEvent.OpenNotificationSettings -> {
-                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        putExtra("app_package", context.packageName)
-                        putExtra("app_uid", context.applicationInfo.uid)
-                    }
-
-                    try {
-                        context.startActivity(intent)
-                    } catch (_: ActivityNotFoundException) {
-                        val fallbackIntent = Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.fromParts("package", context.packageName, null)
-                        )
-                        context.startActivity(fallbackIntent)
-                    }
-                }
 
                 is SettingsEvent.OpenEmailClient -> {
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -619,12 +663,27 @@ fun SettingsBottomSheet(onDismiss: () -> Unit, onLogout: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         SettingsSheet(
-            uiState = uiState,
-            onAction = settingsViewModel::onAction
+            uiState = uiState.copy(
+                notificationsEnabled = effectiveNotificationsEnabled,
+                notificationsSubtitle = effectiveNotificationsSubtitle
+            ),
+            onAction = onSettingsAction
+        )
+    }
+
+    if (showPermissionDeniedDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDeniedDialog = false },
+            title = { Text("Разрешение не выдано") },
+            text = { Text("Чтобы получать уведомления, разрешите их в системе") },
+            confirmButton = {
+                TextButton(onClick = { showPermissionDeniedDialog = false }) {
+                    Text("Понятно")
+                }
+            }
         )
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarBottomSheet(
@@ -645,5 +704,4 @@ fun CalendarBottomSheet(
         )
     }
 }
-
 

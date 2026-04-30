@@ -1,8 +1,8 @@
 package com.example.application.plus
 
-import android.graphics.Color
 import androidx.lifecycle.ViewModel
 import java.time.DayOfWeek
+import com.example.application.data.notifications.NotificationSettingsRepository
 import com.example.application.habit.DayPart
 import com.example.application.habit.FrequencyType
 import com.example.application.habit.Frequency
@@ -10,6 +10,7 @@ import com.example.application.habit.Habit
 import com.example.application.data.habits.HabitsRepository
 import com.example.application.habit.CreateHabitRequest
 import com.example.application.habit.HabitTarget
+import com.example.application.notifications.NotificationSchedulingCoordinator
 import java.time.LocalDate
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
@@ -23,16 +24,20 @@ import kotlinx.coroutines.flow.update
 data class CreateHabitDraftState(
     val currentStep: Int = 1,
     val name: String = "",
-    val colorArgb: Int = Color.parseColor("#E0E0E0"),
+    val colorArgb: Int = DEFAULT_HABIT_COLOR_ARGB,
     val iconId: Int = 1,
     val frequencyType: FrequencyType = FrequencyType.DAILY,
     val weekDays: List<DayOfWeek> = emptyList(),
     val targetCount: Int = 1,
     val dayPart: DayPart = DayPart.FULL_DAY,
+    val reminderEnabled: Boolean = false,
+    val reminderTime: String? = null,
     val editingHabitId: Long? = null,
     val isLoading: Boolean = false,
     val error: String? = null
 )
+
+private const val DEFAULT_HABIT_COLOR_ARGB: Int = 0xFFE0E0E0.toInt()
 
 /**
  * ViewModel for managing the state of the "Create Habit" wizard.
@@ -42,7 +47,11 @@ class CreateHabitViewModel : ViewModel() {
     private val _state = MutableStateFlow(CreateHabitDraftState())
     val state = _state.asStateFlow()
 
-    fun loadHabitForEdit(habit: Habit) {
+    fun loadHabitForEdit(
+        habit: Habit,
+        reminderEnabled: Boolean = false,
+        reminderTime: String? = null
+    ) {
         val freqType = when (habit.frequency) {
             is Frequency.Daily -> FrequencyType.DAILY
             is Frequency.Weekly -> FrequencyType.WEEKLY
@@ -64,6 +73,8 @@ class CreateHabitViewModel : ViewModel() {
                 weekDays = weekDays,
                 targetCount = habit.targets.firstOrNull()?.targetCount ?: 1,
                 dayPart = habit.targets.firstOrNull()?.dayPart ?: DayPart.FULL_DAY,
+                reminderEnabled = reminderEnabled,
+                reminderTime = reminderTime,
                 editingHabitId = habit.habitId
             )
         }
@@ -97,6 +108,23 @@ class CreateHabitViewModel : ViewModel() {
         _state.update { it.copy(dayPart = part) }
     }
 
+    fun updateReminderEnabled(enabled: Boolean) {
+        _state.update { state ->
+            state.copy(
+                reminderEnabled = enabled,
+                reminderTime = if (enabled && state.reminderTime == null) {
+                    defaultReminderTimeForDayPart(state.dayPart)
+                } else {
+                    state.reminderTime
+                }
+            )
+        }
+    }
+
+    fun updateReminderTime(time: String?) {
+        _state.update { it.copy(reminderTime = time) }
+    }
+
     fun setLoading(isLoading: Boolean) {
         _state.update { it.copy(isLoading = isLoading) }
     }
@@ -105,7 +133,12 @@ class CreateHabitViewModel : ViewModel() {
         _state.update { it.copy(error = error) }
     }
 
-    fun saveHabit(repository: HabitsRepository, onSuccess: () -> Unit) {
+    fun saveHabit(
+        repository: HabitsRepository,
+        notificationSettingsRepository: NotificationSettingsRepository,
+        notificationSchedulingCoordinator: NotificationSchedulingCoordinator,
+        onSuccess: () -> Unit
+    ) {
         viewModelScope.launch {
             setLoading(true)
             setError(null)
@@ -120,7 +153,7 @@ class CreateHabitViewModel : ViewModel() {
             val targets = listOf(HabitTarget(stateVal.dayPart, stateVal.targetCount))
             val editId = stateVal.editingHabitId
 
-            val result = if (editId != null) {
+            val result: Result<Unit> = if (editId != null) {
                 val currentHabit = repository.getHabit(editId)
                 if (currentHabit != null) {
                     val updatedHabit = currentHabit.copy(
@@ -130,7 +163,10 @@ class CreateHabitViewModel : ViewModel() {
                         frequency = frequency,
                         targets = targets
                     )
-                    repository.updateHabit(updatedHabit)
+                    repository.updateHabit(updatedHabit).mapCatching {
+                        persistHabitReminderSettings(notificationSettingsRepository, editId, stateVal)
+                        notificationSchedulingCoordinator.onHabitCreatedOrUpdated(editId)
+                    }
                 } else {
                     Result.failure(Exception("Habit not found"))
                 }
@@ -144,7 +180,14 @@ class CreateHabitViewModel : ViewModel() {
                     frequency = frequency,
                     targets = targets
                 )
-                repository.addHabit(request)
+                repository.addHabit(request).mapCatching { createdHabit ->
+                    persistHabitReminderSettings(
+                        notificationSettingsRepository = notificationSettingsRepository,
+                        habitId = createdHabit.habitId,
+                        state = stateVal
+                    )
+                    notificationSchedulingCoordinator.onHabitCreatedOrUpdated(createdHabit.habitId)
+                }
             }
 
             result.onSuccess {
@@ -166,6 +209,24 @@ class CreateHabitViewModel : ViewModel() {
     fun prevStep() {
         if (_state.value.currentStep > 1) {
             _state.update { it.copy(currentStep = it.currentStep - 1) }
+        }
+    }
+
+    private suspend fun persistHabitReminderSettings(
+        notificationSettingsRepository: NotificationSettingsRepository,
+        habitId: Long,
+        state: CreateHabitDraftState
+    ) {
+        notificationSettingsRepository.updateHabitReminderEnabled(habitId, state.reminderEnabled)
+        notificationSettingsRepository.updateHabitReminderTime(habitId, state.reminderTime)
+    }
+
+    private fun defaultReminderTimeForDayPart(dayPart: DayPart): String {
+        return when (dayPart) {
+            DayPart.MORNING -> "09:00"
+            DayPart.DAY -> "14:00"
+            DayPart.EVENING -> "20:00"
+            DayPart.FULL_DAY -> "19:00"
         }
     }
 }

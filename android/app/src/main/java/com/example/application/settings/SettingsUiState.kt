@@ -1,10 +1,10 @@
-package com.example.application.settings
+﻿package com.example.application.settings
 
 import com.example.application.data.settings.HabitStatusFilter
 
 data class SettingsUiState(
-    val notificationsEnabledInSystem: Boolean = false,
-    val notificationsSubtitle: String = "Статус неизвестен",
+    val notificationsEnabled: Boolean = false,
+    val notificationsSubtitle: String = "Выключено",
     val selectedHabitStatusFilter: HabitStatusFilter = HabitStatusFilter.ALL,
     val habitStatusFilterSubtitle: String = "Все привычки",
     val activeDialog: SettingsDialogType = SettingsDialogType.NONE,
@@ -25,8 +25,8 @@ enum class SettingsDialogType {
 sealed interface SettingsAction {
     data object LogoutClicked : SettingsAction
     data object ConfirmLogout : SettingsAction
-    data object NotificationsClicked : SettingsAction
-    data class SyncNotificationsEnabled(val enabled: Boolean) : SettingsAction
+    data object ToggleNotifications : SettingsAction
+    data class SetNotificationsEnabled(val enabled: Boolean) : SettingsAction
     data object OpenSupport : SettingsAction
     data object SupportSendEmailClicked : SettingsAction
     data object SupportCopyEmailClicked : SettingsAction
@@ -42,7 +42,6 @@ sealed interface SettingsAction {
 
 sealed interface SettingsEvent {
     data object Logout : SettingsEvent
-    data object OpenNotificationSettings : SettingsEvent
     data class OpenEmailClient(val email: String) : SettingsEvent
     data class CopyToClipboard(val value: String) : SettingsEvent
     data class ShowMessage(val message: String) : SettingsEvent

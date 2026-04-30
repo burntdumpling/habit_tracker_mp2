@@ -35,6 +35,7 @@ fun EditHabitScreen(
     val context = LocalContext.current
     val appContainer = (context.applicationContext as MyApp).appContainer
     val habitsRepository = appContainer.habitsRepository
+    val notificationSchedulingCoordinator = appContainer.notificationSchedulingCoordinator
     val scope = rememberCoroutineScope()
     
     val scrollState = rememberScrollState()
@@ -81,7 +82,10 @@ fun EditHabitScreen(
                     onClick = {
                         scope.launch {
                             habitsRepository.deleteHabit(habitId)
-                            onBack()
+                                .onSuccess {
+                                    notificationSchedulingCoordinator.onHabitDeleted(habitId)
+                                    onBack()
+                                }
                         }
                     },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = GrayColor)
@@ -255,6 +259,9 @@ fun EditHabitScreen(
                                 targets = targets
                             )
                             habitsRepository.updateHabit(updatedHabit)
+                                .onSuccess {
+                                    notificationSchedulingCoordinator.onHabitCreatedOrUpdated(habitId)
+                                }
                         }
                         onBack()
                     }
